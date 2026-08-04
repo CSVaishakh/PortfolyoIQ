@@ -14,7 +14,7 @@
     "dev": "npm run db:start && concurrently -n \"platform,client,model\" -c \"blue,green,yellow\" \"npm run dev:platform\" \"npm run dev:client\" \"npm run dev:model\"",
     "dev:platform": "turbo run dev --filter=platform-service",
     "dev:client": "turbo run dev --filter=react-client",
-    "dev:model": "bash -c 'cd apps/model-service && source .venv/bin/activate && PORT=$(grep -E \"^PORT\" .env | tr -d \" \" | cut -d= -f2) && uvicorn app.main:app --reload --host 0.0.0.0 --port ${PORT:-8000}'",
+    "dev:model": "bash -c 'cd apps/model-service && source .venv/bin/activate && PORT=$(grep -E \"^PORT\" .env | tr -d \" \" | cut -d= -f2) && uvicorn app.main:app --env-file .env --reload --host 0.0.0.0 --port ${PORT:-8000}'",
     "build": "turbo run build",
     "db:start": "docker compose -f packages/database/docker-compose.yml up -d db",
     "db:stop": "docker compose -f packages/database/docker-compose.yml stop db",
@@ -25,7 +25,8 @@
     "db:studio": "turbo run db:studio",
     "db:clear": "docker exec portfolio-rebalancing-db psql -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-portfolio_rebalancing} -c \"TRUNCATE usermodelhistory, globalmodelhistory RESTART IDENTITY; TRUNCATE users RESTART IDENTITY CASCADE;\"",
     "db:clear:weights": "docker exec portfolio-rebalancing-db psql -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-portfolio_rebalancing} -c \"TRUNCATE usermodelhistory, globalmodelhistory RESTART IDENTITY;\"",
-    "db:reset": "docker compose -f packages/database/docker-compose.yml down -v && npm run db:start && turbo run db:push"
+    "db:reset": "docker compose -f packages/database/docker-compose.yml down -v && npm run db:start && turbo run db:push",
+    "test": "turbo run test"
   },
   "dependencies": {
     "jsonwebtoken": "^9.0.3"
