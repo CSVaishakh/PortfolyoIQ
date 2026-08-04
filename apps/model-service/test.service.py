@@ -1,51 +1,79 @@
-import pandas as pd
-import requests
+"""Smoke-test the local model-service training and weights endpoints."""
+
+import csv
 import json
+from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
-# Load the dataset
-df = pd.read_csv('dataset.csv')
-
-# Separate features (X) and target (y)
-X = df.drop('rebalancing_label', axis=1)
-y = df['rebalancing_label']
-
-# Convert to lists for JSON serialization
-X_data = X.values.tolist()
-y_data = y.values.tolist()
-
-# API base URL
 BASE_URL = "http://localhost:8000"
+DATASET_PATH = Path(__file__).with_name("dataset.csv")
+REQUEST_TIMEOUT_SECONDS = 10
 
-print("=" * 50)
-print("Testing Model Training API")
-print("=" * 50)
 
-# Test 1: Train the model
-print("\n1. Training the model...")
-train_payload = {
-    "X": X_data,
-    "y": y_data
-}
+def load_dataset() -> tuple[list[list[float]], list[int]]:
+    with DATASET_PATH.open(newline="", encoding="utf-8") as dataset_file:
+        rows = csv.DictReader(dataset_file)
+        feature_names = [name for name in rows.fieldnames or [] if name != "rebalancing_label"]
+        if not feature_names:
+            raise ValueError("dataset.csv has no feature columns")
 
-try:
-    response = requests.post(f"{BASE_URL}/train", json=train_payload)
-    print(f"Status Code: {response.status_code}")
-    print(f"Response: {response.json()}")
-except Exception as e:
-    print(f"Error during training: {e}")
+        features: list[list[float]] = []
+        labels: list[int] = []
+        for row in rows:
+            features.append([float(row[name]) for name in feature_names])
+            labels.append(int(row["rebalancing_label"]))
 
-# Test 2: Get weights
-print("\n2. Getting model weights...")
-try:
-    response = requests.get(f"{BASE_URL}/weights")
-    print(f"Status Code: {response.status_code}")
-    weights = response.json()
-    print(f"Coefficients: {weights['coeff']}")
-    print(f"Intercept: {weights['intercept']}")
-    print(f"Sample coefficients (first 5): {weights['coeff'][:5] if len(weights['coeff']) >= 5 else weights['coeff']}")
-except Exception as e:
-    print(f"Error getting weights: {e}")
+    if not features:
+        raise ValueError("dataset.csv contains no observations")
+    return features, labels
 
-print("\n" + "=" * 50)
-print("Test completed!")
-print("=" * 50)
+
+def request_json(url: str, payload: dict[str, object] | None = None) -> dict[str, object]:
+    body = json.dumps(payload).encode("utf-8") if payload is not None else None
+    request = Request(
+        url,
+        data=body,
+        headers={"Content-Type": "application/json"} if body else {},
+        method="POST" if body else "GET",
+    )
+    with urlopen(request, timeout=REQUEST_TIMEOUT_SECONDS) as response:
+        decoded = json.loads(response.read().decode("utf-8"))
+    if not isinstance(decoded, dict):
+        raise TypeError("Expected a JSON object from the model service")
+    return decoded
+
+
+def main() -> None:
+    features, labels = load_dataset()
+    print("=" * 50)
+    print("Testing Model Training API")
+    print("=" * 50)
+
+    print("\n1. Training the model...")
+    try:
+        train_result = request_json(f"{BASE_URL}/train", {"X": features, "y": labels})
+        print(f"Response: {train_result}")
+    except (HTTPError, URLError, TimeoutError, TypeError, ValueError) as error:
+        print(f"Error during training: {error}")
+        return
+
+    print("\n2. Getting weights...")
+    try:
+        weights = request_json(f"{BASE_URL}/weights")
+        raw_coefficients = weights.get("coeff", [])
+        coefficients = raw_coefficients if isinstance(raw_coefficients, list) else []
+        print(f"Coefficients: {coefficients}")
+        print(f"Intercept: {weights.get('intercept', [])}")
+        print(f"Sample coefficients (first 5): {coefficients[:5]}")
+    except (HTTPError, URLError, TimeoutError, TypeError, ValueError) as error:
+        print(f"Error getting weights: {error}")
+        return
+
+    print("\n" + "=" * 50)
+    print("Test completed!")
+    print("=" * 50)
+
+
+if __name__ == "__main__":
+    main()
