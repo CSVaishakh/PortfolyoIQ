@@ -13,6 +13,8 @@ export const userModelHistory = pgTable("usermodelhistory", {
     userid: integer("userid").references(() => users.userid),
     coeff: jsonb("coeff").notNull(),
     intercept: jsonb("intercept").notNull(),
+    /** Number of samples the client actually trained on — used as FedAvg weight. */
+    n_samples: integer("n_samples").notNull().default(1),
     timestamp: timestamp("timestamp").defaultNow(),
 });
 

@@ -33,10 +33,11 @@ export async function saveUserWeights(
   userId: number,
   coeff: number[][],
   intercept: number[],
+  nSamples: number,
 ) {
   const [row] = await db
     .insert(userModelHistory)
-    .values({ userid: userId, coeff, intercept })
+    .values({ userid: userId, coeff, intercept, n_samples: nSamples })
     .returning();
   return row!;
 }

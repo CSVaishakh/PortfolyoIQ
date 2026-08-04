@@ -1,0 +1,1 @@
+ALTER TABLE "usermodelhistory" ADD COLUMN "n_samples" integer DEFAULT 1 NOT NULL;

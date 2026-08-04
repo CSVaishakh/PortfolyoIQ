@@ -1,0 +1,167 @@
+{
+  "id": "a17eeb08-f678-4840-a1f6-a0f807422930",
+  "prevId": "249029b0-216b-4105-8014-f14589b964c7",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.globalmodelhistory": {
+      "name": "globalmodelhistory",
+      "schema": "",
+      "columns": {
+        "serialno": {
+          "name": "serialno",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "coeff": {
+          "name": "coeff",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intercept": {
+          "name": "intercept",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "timestamp": {
+          "name": "timestamp",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.usermodelhistory": {
+      "name": "usermodelhistory",
+      "schema": "",
+      "columns": {
+        "serialno": {
+          "name": "serialno",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "userid": {
+          "name": "userid",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "coeff": {
+          "name": "coeff",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intercept": {
+          "name": "intercept",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "n_samples": {
+          "name": "n_samples",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "timestamp": {
+          "name": "timestamp",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "usermodelhistory_userid_users_userid_fk": {
+          "name": "usermodelhistory_userid_users_userid_fk",
+          "tableFrom": "usermodelhistory",
+          "tableTo": "users",
+          "columnsFrom": [
+            "userid"
+          ],
+          "columnsTo": [
+            "userid"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.users": {
+      "name": "users",
+      "schema": "",
+      "columns": {
+        "userid": {
+          "name": "userid",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "username": {
+          "name": "username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password": {
+          "name": "password",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

@@ -73,6 +73,10 @@ class LogisticRegression {
   /**
    * Train the model. Returns `this` so calls can be chained (mirrors sklearn's
    * `fit` returning self).
+   *
+   * When `onEpoch` is provided it is invoked after every epoch; returning `false`
+   * from the callback stops training early. This lets callers implement early
+   * stopping on a held-out split instead of always running `max_iter` epochs.
    */
   async fit(X: number[][], y: number[], onEpoch: EpochCallback | null = null): Promise<this> {
     const nFeatures = X[0].length;

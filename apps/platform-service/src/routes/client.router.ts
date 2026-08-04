@@ -1,6 +1,5 @@
 import { Router, Response } from "express";
 import { authMiddleware, AuthRequest } from "../middleware/auth.middleware.js";
-import { runFedAvg } from "./model.route.js";
 import {
   getUserById,
   getLatestGlobalModel,
@@ -8,6 +7,40 @@ import {
   saveUserWeights,
   getUserModelHistory,
 } from "../queries/client.queries.js";
+
+/** Width of the standardized 12-feature vector every client model must match. */
+const N_FEATURES = 12;
+
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v);
+}
+
+/**
+ * Validate an uploaded linear-model payload.
+ * Rejects malformed shapes, wrong feature widths and non-finite values — a single
+ * malformed upload would otherwise poison the aggregated (mean) model.
+ */
+function validateWeightsPayload(
+  coef: unknown,
+  intercept: unknown
+): { ok: true; coef: number[][]; intercept: number[] } | { ok: false; error: string } {
+  if (!Array.isArray(coef) || coef.length !== 1) {
+    return { ok: false, error: "coef must be a 1×N matrix" };
+  }
+  if (!Array.isArray(coef[0]) || coef[0].length !== N_FEATURES) {
+    return { ok: false, error: `coef must have exactly ${N_FEATURES} features` };
+  }
+  if (!Array.isArray(intercept) || intercept.length < 1) {
+    return { ok: false, error: "intercept must be a non-empty vector" };
+  }
+  if (coef[0].some((v) => !isFiniteNumber(v))) {
+    return { ok: false, error: "coef contains a non-finite value" };
+  }
+  if (intercept.some((v) => !isFiniteNumber(v))) {
+    return { ok: false, error: "intercept contains a non-finite value" };
+  }
+  return { ok: true, coef: coef as number[][], intercept: intercept as number[] };
+}
 
 const clientRouter = Router();
 
@@ -68,33 +101,42 @@ clientRouter.get("/model/weights", async (req, res: Response) => {
 });
 
 // ── POST /client/model/weights ─────────────────────────────────────────────
-// Submits locally-trained weights after a client-side fit() call.
+// Submits locally-fine-tuned weights after a client-side fit() call.
 // Persists a new row in userModelHistory.
 // Body: { coef: number[][], intercept: number[], n_samples: number }
-// n_samples is validated here but not yet stored — it will be used by the
-// aggregation step in model.route.ts once FedAvg is implemented.
+// n_samples is the real number of rows the client trained on; it weights the
+// client's contribution in the sample-weighted FedAvg aggregation step.
+// Aggregation itself is admin-triggered (POST /model/train) — NOT run
+// fire-and-forget here, so a stampede of uploads cannot trigger concurrent,
+// racing aggregation rounds.
 clientRouter.post("/model/weights", async (req, res: Response) => {
   const userId = (req as AuthRequest).userId;
 
   const { coef, intercept, n_samples } = req.body as {
-    coef?: number[][];
-    intercept?: number[];
-    n_samples?: number;
+    coef?: unknown;
+    intercept?: unknown;
+    n_samples?: unknown;
   };
 
-  if (!coef || !intercept || n_samples === undefined) {
+  if (coef === undefined || intercept === undefined || n_samples === undefined) {
     res.status(400).json({ error: "coef, intercept, and n_samples are required" });
     return;
   }
 
-  if (!Array.isArray(coef) || !Array.isArray(intercept)) {
-    res.status(400).json({ error: "coef must be number[][] and intercept must be number[]" });
+  if (!isFiniteNumber(n_samples) || n_samples <= 0 || n_samples > 1_000_000) {
+    res.status(400).json({ error: "n_samples must be a positive finite number" });
+    return;
+  }
+
+  const validated = validateWeightsPayload(coef, intercept);
+  if (!validated.ok) {
+    res.status(400).json({ error: validated.error });
     return;
   }
 
   let row;
   try {
-    row = await saveUserWeights(userId, coef, intercept);
+    row = await saveUserWeights(userId, validated.coef, validated.intercept, n_samples);
   } catch (err) {
     const msg = (err as Error).message ?? String(err);
     // FK violation means the JWT references a user that no longer exists (DB was reset)
@@ -108,15 +150,11 @@ clientRouter.post("/model/weights", async (req, res: Response) => {
     return;
   }
 
-  // Fire-and-forget: run FedAvg and push aggregated weights to the model-service.
-  runFedAvg().catch((err) =>
-    console.error("[FedAvg] aggregation failed:", (err as Error).message)
-  );
-
   res.status(201).json({
     serialno:  row.serialno,
     coef:      row.coeff,
     intercept: row.intercept,
+    n_samples: row.n_samples,
     timestamp: row.timestamp,
   });
 });

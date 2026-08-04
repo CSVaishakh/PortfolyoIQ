@@ -8,7 +8,10 @@ import { parseNiftyCSV, getLatestMarketFeatures } from "@/lib/marketData";
 import {
   computePortfolioFeatures,
   buildFeatureVector,
-  labelFeatureVector,
+  buildTrainingDataset,
+  standardizeFeatureVector,
+  standardizeFeatureMatrix,
+  computeLabelScore,
   evaluateConditions,
   type PortfolioFeatures,
   type FeatureVector,
@@ -25,14 +28,17 @@ interface LogEntry {
   status: "info" | "ok" | "warn" | "error";
 }
 
+type PredictionSource = "global" | "heuristic";
+
 interface PredictionResult {
   label: 0 | 1;
   probability: number;
-  trained: boolean;          // false when label was ambiguous — global model used as-is
+  source: PredictionSource;   // "global" = federated ML model, "heuristic" = fallback rule
+  contributed: boolean;       // weights uploaded for federated learning
+  contributionSamples: number;
   portfolioFeatures: PortfolioFeatures;
   conditions: ConditionResult[];
   featureVector: FeatureVector;
-  weightsUploaded: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -151,16 +157,12 @@ export default function InteractClient() {
         "info"
       );
 
-      // ── Step 6: Label the feature vector ──────────────────────────────────────
-      addLog("Labelling feature vector…");
-      const label = labelFeatureVector(fv);
-      addLog(`Label: ${label === 1 ? "REBALANCE (1)" : "HOLD (0)"}.`, "ok");
-
-      // ── Step 7: Load global model weights ────────────────────────────────────
+      // ── Step 6: Load global model weights ────────────────────────────────────
       addLog("Fetching global model weights…");
       const token = localStorage.getItem("token");
       let initialCoef: number[][] | null = null;
       let initialIntercept: number[] | null = null;
+      let hasGlobalModel = false;
 
       if (token) {
         try {
@@ -171,67 +173,143 @@ export default function InteractClient() {
             const data = await res.json();
             initialCoef = data.coef;
             initialIntercept = data.intercept;
+            hasGlobalModel = !!initialCoef && !!initialIntercept;
             addLog("Global weights loaded.", "ok");
           } else {
-            addLog("No global weights available — starting from random initialisation.", "warn");
+            addLog("No global model seeded yet — falling back to the rule-based assessment.", "warn");
           }
         } catch {
-          addLog("Could not reach server — starting from random initialisation.", "warn");
+          addLog("Could not reach server — falling back to the rule-based assessment.", "warn");
         }
       } else {
-        addLog("Not signed in — starting from random initialisation.", "warn");
+        addLog("Not signed in — falling back to the rule-based assessment.", "warn");
       }
 
-      // ── Step 8: Load model + optionally train on the single sample ────────────
-      addLog("Loading model…");
+      // ── Step 7: Predict with the GLOBAL model only ───────────────────────────
+      // No local fit on the single feature vector. A 1-sample fit memorises that
+      // one portfolio (200 epochs over one row → near-perfect overfit) and wipes
+      // the warm-started global weights; averaging such memorisations across users
+      // in FedAvg biased the global model toward whichever features had the
+      // largest raw magnitude (days, drift). Prediction is now pure inference on
+      // standardized features, so the global model's weights — and not a replayed
+      // rule — drive the verdict.
+      addLog("Loading global model…");
       const { default: LogisticRegression } = await import("@/ts-model/logisticRegression");
       const model = new LogisticRegression({ C: 1.0, max_iter: 200, lr: 0.05 });
 
-      if (initialCoef && initialIntercept) {
-        model.setWeights(initialCoef, initialIntercept);
+      let predictedLabel: 0 | 1;
+      let pRebalance: number;
+      let source: PredictionSource;
+
+      if (hasGlobalModel) {
+        model.setWeights(initialCoef!, initialIntercept!);
+        const probas = model.predict_proba([standardizeFeatureVector(fv)]);
+        pRebalance = probas[0][1];
+        predictedLabel = pRebalance >= 0.5 ? 1 : 0;
+        source = "global";
+      } else {
+        // No seeded global model anywhere in the fleet — use the explanatory
+        // rule (the same scoring that synthesizes training labels) as a fallback.
+        const fallback = computeLabelScore(fv);
+        pRebalance = fallback.prob;
+        predictedLabel = fallback.label;
+        source = "heuristic";
       }
 
-      addLog(`Training on single sample (label = ${label})…`);
-      await model.fit([fv], [label]);
-      const trained = true;
-      addLog("Local training complete.", "ok");
-
-      // ── Step 9: Predict ───────────────────────────────────────────────────────
-      addLog("Running prediction…");
-      const probas = model.predict_proba([fv]);
-      const pRebalance = probas[0][1];
-      const predictedLabel: 0 | 1 = pRebalance >= 0.5 ? 1 : 0;
       const confidence = Math.max(pRebalance, 1 - pRebalance);
       const conditions = evaluateConditions(fv);
       addLog(
-        `Prediction: ${predictedLabel === 1 ? "REBALANCE" : "HOLD"} — confidence ${(confidence * 100).toFixed(1)}%`,
+        `Prediction ${source === "global" ? "(global ML model)" : "(rule fallback)"}: ` +
+        `${predictedLabel === 1 ? "REBALANCE" : "HOLD"} — confidence ${(confidence * 100).toFixed(1)}%`,
         "ok"
       );
 
-      // ── Step 10: Upload weights ───────────────────────────────────────────────
-      let weightsUploaded = false;
-      if (token && trained) {
-        addLog("Uploading model weights to server…");
-        try {
-          const { coef, intercept } = model.getWeights();
-          const res = await fetch(`${API_BASE}/client/model/weights`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              token: token,
-            },
-            body: JSON.stringify({ coef, intercept, n_samples: 1 }),
+      // ── Step 8: Federated contribution on the FULL synthetic dataset ─────────
+      // If a global model exists, contribute genuinely useful gradient signal:
+      // train on the complete synthetic dataset built from this portfolio across
+      // the whole market history (hundreds of rows, decoupled days, real variety)
+      // — not on a single memorised point. Weights are uploaded with the true
+      // sample count so the server can run sample-weighted FedAvg.
+      let contributed = false;
+      let contributionSamples = 0;
+
+      if (token && hasGlobalModel) {
+        addLog("Building synthetic local dataset for FL contribution…");
+        const localDataset = buildTrainingDataset(pf, marketRows);
+
+        if (localDataset.nRebalance === 0 || localDataset.nHold === 0) {
+          addLog(
+            "Skipping contribution — synthetic data is single-class; training on it would add noise.",
+            "warn"
+          );
+        } else {
+          addLog(
+            `Synthetic dataset: ${localDataset.X.length} rows ` +
+            `(${localDataset.nRebalance} rebalance / ${localDataset.nHold} hold).`,
+            "ok"
+          );
+
+          const Xs = standardizeFeatureMatrix(localDataset.X);
+          const ys = localDataset.y;
+
+          // Warm-start from the global model, then fine-tune on the local dataset
+          // with early stopping on a held-out 20% split to avoid degenerate overfit.
+          model.setWeights(initialCoef!, initialIntercept!);
+
+          const splitAt = Math.floor(Xs.length * 0.8);
+          const trX = Xs.slice(0, splitAt);
+          const trY = ys.slice(0, splitAt);
+          const vaX = Xs.slice(splitAt);
+          const vaY = ys.slice(splitAt);
+
+          let bestValAcc = -1;
+          let patience = 5;
+          let bestWeights: { coef: number[][]; intercept: number[] } | null = null;
+
+          await model.fit(trX, trY, (_epoch, _logs) => {
+            const valAcc = model.score(vaX, vaY);
+            if (valAcc > bestValAcc) {
+              bestValAcc = valAcc;
+              patience = 5;
+              bestWeights = model.getWeights();
+            } else {
+              patience -= 1;
+              if (patience <= 0) return false; // early stop
+            }
+            return true;
           });
-          if (res.ok) {
-            weightsUploaded = true;
-            addLog("Weights uploaded — contributing to federated model.", "ok");
-          } else {
-            const body = await res.json().catch(() => ({}));
-            addLog(`Weight upload failed (${res.status}): ${body.error ?? "server error"}.`, "warn");
+
+          if (bestWeights) model.setWeights(bestWeights.coef, bestWeights.intercept);
+          addLog(
+            `Local fine-tune complete — best held-out accuracy ${(bestValAcc * 100).toFixed(1)}%.`,
+            bestValAcc > 0 ? "ok" : "warn"
+          );
+
+          addLog("Uploading model weights to server…");
+          try {
+            const { coef, intercept } = model.getWeights();
+            const res = await fetch(`${API_BASE}/client/model/weights`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                token: token,
+              },
+              body: JSON.stringify({ coef, intercept, n_samples: localDataset.X.length }),
+            });
+            if (res.ok) {
+              contributed = true;
+              contributionSamples = localDataset.X.length;
+              addLog("Weights uploaded — contributing to federated model.", "ok");
+            } else {
+              const body = await res.json().catch(() => ({}));
+              addLog(`Weight upload failed (${res.status}): ${body.error ?? "server error"}.`, "warn");
+            }
+          } catch {
+            addLog("Weight upload failed — could not reach server.", "warn");
           }
-        } catch {
-          addLog("Weight upload failed — could not reach server.", "warn");
         }
+      } else if (token && !hasGlobalModel) {
+        addLog("No global model to warm-start from — contribution skipped.", "warn");
       } else {
         addLog("Not signed in — weights not uploaded.", "warn");
       }
@@ -240,11 +318,12 @@ export default function InteractClient() {
       setResult({
         label: predictedLabel,
         probability: pRebalance,
-        trained,
+        source,
+        contributed,
+        contributionSamples,
         portfolioFeatures: pf,
         conditions,
         featureVector: fv,
-        weightsUploaded,
       });
 
     } catch (err) {
@@ -447,8 +526,16 @@ export default function InteractClient() {
                   </p>
                 </div>
                 <div className="text-right text-xs text-zinc-500 space-y-0.5">
-                  <p>{result.trained ? "Locally trained · 1 sample" : "Global model only (ambiguous label)"}</p>
-                  {result.weightsUploaded && <p className="text-indigo-400">✓ Weights uploaded</p>}
+                  <p>
+                    {result.source === "global"
+                      ? "Global federated model · standardized features"
+                      : "Rule-based fallback (no global model seeded)"}
+                  </p>
+                  {result.contributed && (
+                    <p className="text-indigo-400">
+                      ✓ Contributed to FL · {result.contributionSamples} samples
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
