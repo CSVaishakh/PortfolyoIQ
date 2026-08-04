@@ -1,235 +1,304 @@
 import { Router, Request, Response } from "express";
-import { getAllLatestUserWeights, saveGlobalWeights } from "../queries/client.queries.js";
+import {
+  getAllLatestUserWeights,
+  getGlobalModelBySerial,
+  getLatestGlobalModel,
+  saveGlobalWeights,
+} from "../queries/client.queries.js";
+import { MODEL_CONTRACT } from "../model-contract.js";
+import {
+  AggregationRoundInProgressError,
+  MIN_PARTICIPANTS,
+  ModelServiceUnavailableError,
+  runAggregationRound,
+  type AggregationDeps,
+  type AggregationResult,
+  type LinearModel,
+} from "../federated.js";
 
-const modelRouter = Router();
-
-const MODEL_SERVICE_URL = process.env["MODEL_SERVICE_URL"] ?? "http://localhost:8000";
-const ADMIN_SECRET      = process.env["ADMIN_SECRET"];
-if (!ADMIN_SECRET) throw new Error("ADMIN_SECRET env variable is not set");
-
-/** Fewest distinct participants required before an aggregation round runs. */
-const MIN_PARTICIPANTS = 2;
-
-/** Linear-model row shape contract shared with the client (12 standardized features). */
-const N_FEATURES = 12;
-
-function requireAdminSecret(req: Request, res: Response): boolean {
-  const provided = req.headers["x-admin-secret"];
-  if (provided !== ADMIN_SECRET) {
-    res.status(403).json({ error: "Invalid admin secret." });
-    return false;
-  }
-  return true;
-}
-
-// ── FedAvg helpers ────────────────────────────────────────────────────────────
-
-function isFiniteNumber(v: unknown): v is number {
-  return typeof v === "number" && Number.isFinite(v);
-}
-
-/** True if the row is a well-formed, finite linear-model snapshot. */
-function isValidWeightRow(row: {
-  coeff: unknown;
-  intercept: unknown;
-  n_samples: unknown;
-}): boolean {
-  if (!Array.isArray(row.coeff) || row.coeff.length !== 1) return false;
-  const coeffRow = row.coeff[0];
-  if (!Array.isArray(coeffRow) || coeffRow.length !== N_FEATURES) return false;
-  if (!Array.isArray(row.intercept) || row.intercept.length < 1) return false;
-  if (coeffRow.some((v) => !isFiniteNumber(v))) return false;
-  if (row.intercept.some((v) => !isFiniteNumber(v))) return false;
-  if (!isFiniteNumber(row.n_samples) || row.n_samples <= 0) return false;
-  return true;
+export interface SeedTrainingResponse {
+  n_samples: number;
+  n_features: number;
+  classes: number[];
+  coeff: number[][];
+  intercept: number[];
+  message: string;
 }
 
 /**
- * Sample-weighted mean of participant matrices: W̄ = Σ (nᵢ/Σn) · Mᵢ.
- * Every participant's rows are guaranteed to share the same shape (validated
- * upstream), so no shape mismatch can occur at reduction time.
+ * Outbound calls the model routes make. Injected so aggregation, rollback and
+ * seeding can be tested against a stub model service.
  */
-function avgMatrix(matrices: number[][][], weights: number[]): number[][] {
-  const rows = matrices[0].length;
-  const cols = matrices[0][0].length;
-  const total = weights.reduce((a, b) => a + b, 0);
-
-  return Array.from({ length: rows }, (_, i) =>
-    Array.from({ length: cols }, (_, j) =>
-      matrices.reduce((sum, m, k) => sum + (weights[k] / total) * m[i][j], 0)
-    )
-  );
+export interface ModelServiceClient {
+  pushWeights: (model: LinearModel) => Promise<void>;
+  trainOnDataset: () => Promise<SeedTrainingResponse>;
 }
 
-function avgVector(vectors: number[][], weights: number[]): number[] {
-  const total = weights.reduce((a, b) => a + b, 0);
-  const len = vectors[0].length;
-
-  return Array.from({ length: len }, (_, i) =>
-    vectors.reduce((sum, v, k) => sum + (weights[k] / total) * v[i], 0)
-  );
+export interface ModelRouterDeps {
+  getAllLatestUserWeights: typeof getAllLatestUserWeights;
+  getLatestGlobalModel: typeof getLatestGlobalModel;
+  getGlobalModelBySerial: typeof getGlobalModelBySerial;
+  saveGlobalWeights: typeof saveGlobalWeights;
+  modelService: ModelServiceClient;
 }
 
-export interface FedAvgResult {
-  participants: number;
-  serialno: number;
-  coeff: number[][];
-  intercept: number[];
-  n_samples_total: number;
-  timestamp: string | Date;
-  modelService: string;
+export interface ModelRouterConfig {
+  adminSecret: string;
+  federatedAggregationEnabled: boolean;
+  demoModelEnabled: boolean;
 }
 
-// ── Exported aggregation entry point (admin routes only) ─────────────────────
-// Aggregation is deliberately NOT triggered from the client upload path:
-// fire-and-forget runs on every upload caused racing, interleaved rounds.
+export function modelRouterConfigFromEnv(): ModelRouterConfig {
+  const adminSecret = process.env["ADMIN_SECRET"];
+  if (!adminSecret) throw new Error("ADMIN_SECRET env variable is not set");
+  return {
+    adminSecret,
+    federatedAggregationEnabled: process.env["FEDERATED_AGGREGATION_ENABLED"] === "true",
+    demoModelEnabled: process.env["DEMO_MODEL_ENABLED"] === "true",
+  };
+}
 
-export async function runFedAvg(): Promise<FedAvgResult | null> {
-  const rows = await getAllLatestUserWeights();
+/** HTTP model-service client built from the environment's internal secret. */
+export function createHttpModelServiceClient(): ModelServiceClient {
+  const modelServiceUrl = process.env["MODEL_SERVICE_URL"] ?? "http://localhost:8000";
+  const modelServiceSecret = process.env["MODEL_SERVICE_SECRET"];
+  if (!modelServiceSecret) throw new Error("MODEL_SERVICE_SECRET env variable is not set");
 
-  const valid = rows.filter((r) => isValidWeightRow(r));
-  if (valid.length < MIN_PARTICIPANTS) return null;
-
-  const coeffs    = valid.map((r) => r.coeff     as number[][]);
-  const intercept = valid.map((r) => r.intercept as number[]);
-  const samples   = valid.map((r) => r.n_samples  as number);
-
-  // Sample-weighted FedAvg — a participant who trained on 190 rows moves the
-  // global model ~190x more than one who trained on a single row.
-  const aggregatedCoeff     = avgMatrix(coeffs, samples);
-  const aggregatedIntercept = avgVector(intercept, samples);
-  const nSamplesTotal       = samples.reduce((a, b) => a + b, 0);
-
-  // Persist aggregated weights to globalModelHistory
-  const global = await saveGlobalWeights(aggregatedCoeff, aggregatedIntercept);
-
-  // Push aggregated weights to the model-service
-  let modelService = "unreachable";
-  try {
-    const msRes = await fetch(`${MODEL_SERVICE_URL}/weights`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ coeff: aggregatedCoeff, intercept: aggregatedIntercept }),
-    });
-    modelService = msRes.ok ? "weights updated" : `rejected (HTTP ${msRes.status})`;
-  } catch (err) {
-    modelService = `unreachable — ${(err as Error).message}`;
-  }
+  const headers = {
+    "Content-Type": "application/json",
+    "x-model-service-secret": modelServiceSecret,
+  };
 
   return {
-    participants: valid.length,
-    serialno: global.serialno,
-    coeff: aggregatedCoeff,
-    intercept: aggregatedIntercept,
-    n_samples_total: nSamplesTotal,
-    timestamp: global.timestamp,
-    modelService,
+    async pushWeights(model: LinearModel): Promise<void> {
+      const response = await fetch(`${modelServiceUrl}/weights`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ coeff: model.coeff, intercept: model.intercept }),
+      });
+      if (!response.ok) throw new Error(`model service rejected the weights (HTTP ${response.status})`);
+    },
+    async trainOnDataset(): Promise<SeedTrainingResponse> {
+      const response = await fetch(`${modelServiceUrl}/train/dataset`, { method: "POST", headers });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({})) as { detail?: string };
+        throw new Error(`Model service error: ${body.detail ?? response.status}`);
+      }
+      return await response.json() as SeedTrainingResponse;
+    },
   };
 }
 
-// ── POST /model/aggregate ─────────────────────────────────────────────────────
-// Manually trigger a FedAvg round. Can also be called internally.
+export function createModelRouter(deps: ModelRouterDeps, config: ModelRouterConfig): Router {
+  const modelRouter = Router();
 
-modelRouter.post("/aggregate", async (_req, res: Response) => {
-  const result = await runFedAvg();
-
-  if (!result) {
-    res.status(400).json({
-      error: `Fewer than ${MIN_PARTICIPANTS} valid participants available for aggregation.`,
-    });
-    return;
+  function requireAdminSecret(req: Request, res: Response): boolean {
+    const provided = req.headers["x-admin-secret"];
+    if (provided !== config.adminSecret) {
+      res.status(403).json({ error: "Invalid admin secret." });
+      return false;
+    }
+    return true;
   }
 
-  res.json({
-    participants: result.participants,
-    n_samples_total: result.n_samples_total,
-    globalModel: {
-      serialno:  result.serialno,
-      coeff:     result.coeff,
-      intercept: result.intercept,
+  const aggregationDeps: AggregationDeps = {
+    loadLatestUserWeights: () => deps.getAllLatestUserWeights(),
+    async loadActiveGlobalModel() {
+      const active = await deps.getLatestGlobalModel();
+      return active ? { coeff: active.coeff as number[][], intercept: active.intercept as number[] } : null;
     },
-    modelService: result.modelService,
-  });
-});
-
-// ── POST /model/seed ──────────────────────────────────────────────────────────
-// Admin-only. Trains the model-service directly on the bundled dataset.csv,
-// then saves the resulting weights to globalModelHistory so clients can
-// warm-start from them.
-// Requires header:  x-admin-secret: <ADMIN_SECRET>
-
-modelRouter.post("/seed", async (req: Request, res: Response) => {
-  if (!requireAdminSecret(req, res)) return;
-
-  let msData: {
-    n_samples: number;
-    n_features: number;
-    classes: number[];
-    coeff: number[][];
-    intercept: number[];
-    message: string;
+    async saveGlobalModel(model, participants, nSamplesTotal) {
+      return deps.saveGlobalWeights(
+        model.coeff,
+        model.intercept,
+        participants,
+        nSamplesTotal,
+        MODEL_CONTRACT.featureVersion,
+        MODEL_CONTRACT.scalerVersion,
+        MODEL_CONTRACT.modelVersion,
+      );
+    },
+    pushToModelService: (model) => deps.modelService.pushWeights(model),
   };
 
-  try {
-    const msRes = await fetch(`${MODEL_SERVICE_URL}/train/dataset`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    });
-
-    if (!msRes.ok) {
-      const body = await msRes.json().catch(() => ({})) as { detail?: string };
-      res.status(502).json({ error: `Model service error: ${body.detail ?? msRes.status}` });
+  /**
+   * Shared handler for the two admin aggregation routes. Translates the round's
+   * outcomes into stable status codes: 409 for a concurrent round, 502 when the
+   * model service never confirmed (in which case nothing was activated).
+   */
+  async function handleAggregation(
+    req: Request,
+    res: Response,
+    onSuccess: (result: AggregationResult) => void,
+    tooFewMessage: string,
+  ): Promise<void> {
+    if (!requireAdminSecret(req, res)) return;
+    if (!config.federatedAggregationEnabled) {
+      res.status(503).json({ error: "Federated aggregation is paused pending outcome-based model validation." });
       return;
     }
 
-    msData = await msRes.json();
-  } catch (err) {
-    res.status(502).json({ error: `Could not reach model service: ${(err as Error).message}` });
-    return;
+    let result: AggregationResult | null;
+    try {
+      result = await runAggregationRound(aggregationDeps);
+    } catch (err) {
+      if (err instanceof AggregationRoundInProgressError) {
+        res.status(409).json({ error: err.message });
+        return;
+      }
+      if (err instanceof ModelServiceUnavailableError) {
+        res.status(502).json({ error: err.message, activated: false });
+        return;
+      }
+      throw err;
+    }
+
+    if (!result) {
+      res.status(400).json({ error: tooFewMessage });
+      return;
+    }
+    onSuccess(result);
   }
 
-  // Persist the freshly trained weights as a new global model snapshot
-  const global = await saveGlobalWeights(msData.coeff, msData.intercept);
-
-  res.json({
-    message:    msData.message,
-    n_samples:  msData.n_samples,
-    n_features: msData.n_features,
-    classes:    msData.classes,
-    globalModel: {
-      serialno:  global.serialno,
-      timestamp: global.timestamp,
-    },
+  // ── POST /model/aggregate ───────────────────────────────────────────────────
+  // Admin-only. Runs one sample-weighted FedAvg round.
+  // Requires header:  x-admin-secret: <ADMIN_SECRET>
+  modelRouter.post("/aggregate", async (req: Request, res: Response) => {
+    await handleAggregation(
+      req,
+      res,
+      (result) => {
+        res.json({
+          participants: result.participants,
+          n_samples_total: result.n_samples_total,
+          globalModel: {
+            serialno: result.serialno,
+            coeff: result.coeff,
+            intercept: result.intercept,
+          },
+          modelService: result.modelService,
+        });
+      },
+      `Fewer than ${MIN_PARTICIPANTS} valid participants available for aggregation.`,
+    );
   });
-});
 
-// ── POST /model/train ─────────────────────────────────────────────────────────
-// Admin-only. Runs sample-weighted FedAvg over all stored user weights, updates
-// the global model in the DB, and pushes the aggregated weights to the
-// model-service.
-// Requires header:  x-admin-secret: <ADMIN_SECRET>
+  // ── POST /model/train ───────────────────────────────────────────────────────
+  // Admin-only. Same round as /aggregate, with a summary response.
+  modelRouter.post("/train", async (req: Request, res: Response) => {
+    await handleAggregation(
+      req,
+      res,
+      (result) => {
+        res.status(200).json({
+          participants: result.participants,
+          n_samples_total: result.n_samples_total,
+          globalModel: {
+            serialno: result.serialno,
+            timestamp: result.timestamp,
+          },
+          modelService: result.modelService,
+        });
+      },
+      `Fewer than ${MIN_PARTICIPANTS} valid participants with weights available yet. Have clients run predictions first.`,
+    );
+  });
 
-modelRouter.post("/train", async (req: Request, res: Response) => {
-  if (!requireAdminSecret(req, res)) return;
+  // ── POST /model/seed ────────────────────────────────────────────────────────
+  // Admin-only. Trains the model-service directly on the bundled demo dataset,
+  // then saves the resulting weights to globalModelHistory so clients can
+  // warm-start from them.
+  // Requires header:  x-admin-secret: <ADMIN_SECRET>
+  modelRouter.post("/seed", async (req: Request, res: Response) => {
+    if (!requireAdminSecret(req, res)) return;
+    if (!config.federatedAggregationEnabled && !config.demoModelEnabled) {
+      res.status(503).json({ error: "Model seeding is paused pending outcome-based model validation." });
+      return;
+    }
 
-  const result = await runFedAvg();
+    let msData: SeedTrainingResponse;
+    try {
+      msData = await deps.modelService.trainOnDataset();
+    } catch (err) {
+      res.status(502).json({ error: (err as Error).message });
+      return;
+    }
 
-  if (!result) {
-    res.status(400).json({
-      error: `Fewer than ${MIN_PARTICIPANTS} valid participants with weights available yet. Have clients run predictions first.`,
+    // Persist the freshly trained weights as a new global model snapshot.
+    const global = await deps.saveGlobalWeights(
+      msData.coeff,
+      msData.intercept,
+      0,
+      msData.n_samples,
+      MODEL_CONTRACT.featureVersion,
+      MODEL_CONTRACT.scalerVersion,
+      MODEL_CONTRACT.modelVersion,
+    );
+
+    res.json({
+      message: msData.message,
+      n_samples: msData.n_samples,
+      n_features: msData.n_features,
+      classes: msData.classes,
+      globalModel: {
+        serialno: global.serialno,
+        timestamp: global.timestamp,
+      },
     });
-    return;
-  }
-
-  res.status(result.modelService === "weights updated" ? 200 : 207).json({
-    participants:    result.participants,
-    n_samples_total: result.n_samples_total,
-    globalModel: {
-      serialno:  result.serialno,
-      timestamp: result.timestamp,
-    },
-    modelService: result.modelService,
   });
-});
+
+  // ── POST /model/rollback/:serialno ──────────────────────────────────────────
+  // Operator rollback: restores a recorded global snapshot by creating a new
+  // snapshot, leaving the original history intact for the audit trail. As with
+  // aggregation, the model service must confirm before the restore is recorded.
+  modelRouter.post("/rollback/:serialno", async (req: Request, res: Response) => {
+    if (!requireAdminSecret(req, res)) return;
+    const serialno = Number(req.params["serialno"]);
+    if (!Number.isInteger(serialno) || serialno < 1) {
+      res.status(400).json({ error: "serialno must be a positive integer" });
+      return;
+    }
+    const previous = await deps.getGlobalModelBySerial(serialno);
+    if (!previous) {
+      res.status(404).json({ error: "Model snapshot not found" });
+      return;
+    }
+    try {
+      await deps.modelService.pushWeights({
+        coeff: previous.coeff as number[][],
+        intercept: previous.intercept as number[],
+      });
+    } catch (err) {
+      res.status(502).json({ error: `Could not roll back: ${(err as Error).message}`, activated: false });
+      return;
+    }
+    const restored = await deps.saveGlobalWeights(
+      previous.coeff as number[][],
+      previous.intercept as number[],
+      0,
+      0,
+      previous.feature_version,
+      previous.scaler_version,
+      previous.model_version,
+    );
+    res.json({
+      message: `Restored snapshot ${serialno}`,
+      globalModel: { serialno: restored.serialno, timestamp: restored.timestamp },
+    });
+  });
+
+  return modelRouter;
+}
+
+const modelRouter = createModelRouter(
+  {
+    getAllLatestUserWeights,
+    getLatestGlobalModel,
+    getGlobalModelBySerial,
+    saveGlobalWeights,
+    modelService: createHttpModelServiceClient(),
+  },
+  modelRouterConfigFromEnv(),
+);
 
 export { modelRouter };
