@@ -2,5 +2,8 @@
 __pycache__
 .env.local
 node_modules
+dist/
+.next/
+.turbo/
 .vscode
 .env.local
