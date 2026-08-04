@@ -19,6 +19,15 @@ export async function getLatestGlobalModel() {
   return row ?? null;
 }
 
+export async function getGlobalModelBySerial(serialno: number) {
+  const [row] = await db
+    .select()
+    .from(globalModelHistory)
+    .where(eq(globalModelHistory.serialno, serialno))
+    .limit(1);
+  return row ?? null;
+}
+
 export async function getLatestUserWeights(userId: number) {
   const [row] = await db
     .select()
@@ -34,10 +43,23 @@ export async function saveUserWeights(
   coeff: number[][],
   intercept: number[],
   nSamples: number,
+  featureVersion: number,
+  scalerVersion: number,
+  modelVersion: number,
+  validationAuc: number | null,
 ) {
   const [row] = await db
     .insert(userModelHistory)
-    .values({ userid: userId, coeff, intercept, n_samples: nSamples })
+    .values({
+      userid: userId,
+      coeff,
+      intercept,
+      n_samples: nSamples,
+      feature_version: featureVersion,
+      scaler_version: scalerVersion,
+      model_version: modelVersion,
+      validation_auc: validationAuc,
+    })
     .returning();
   return row!;
 }
@@ -57,10 +79,26 @@ export async function getAllLatestUserWeights() {
   });
 }
 
-export async function saveGlobalWeights(coeff: number[][], intercept: number[]) {
+export async function saveGlobalWeights(
+  coeff: number[][],
+  intercept: number[],
+  participants: number,
+  nSamplesTotal: number,
+  featureVersion: number,
+  scalerVersion: number,
+  modelVersion: number,
+) {
   const [row] = await db
     .insert(globalModelHistory)
-    .values({ coeff, intercept })
+    .values({
+      coeff,
+      intercept,
+      participants,
+      n_samples_total: nSamplesTotal,
+      feature_version: featureVersion,
+      scaler_version: scalerVersion,
+      model_version: modelVersion,
+    })
     .returning();
   return row!;
 }

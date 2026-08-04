@@ -10,15 +10,109 @@ export interface MarketFeatures {
   market_trend: number; // 1 = bullish, 0 = bearish
 }
 
+export const MARKET_DATASET = {
+  benchmark: "NIFTY 50",
+  filename: "nifty50-15y.csv",
+  coverageStart: "2011-08-01",
+  /** Update this provenance text whenever the checked-in source is refreshed. */
+  provenance: "Bundled daily NIFTY 50 OHLCV CSV supplied by the project owner",
+} as const;
+
+/**
+ * Freshness service-level objective. Five days covers a normal weekend plus a
+ * market holiday; anything older is treated as unusable for a live decision.
+ */
+export const MAX_MARKET_DATA_AGE_DAYS = 5;
+
+/** Trading days needed before the 90-day drawdown and MA50 features exist. */
+export const MIN_MARKET_HISTORY_ROWS = 90;
+
+export interface MarketDataFreshness {
+  usable: boolean;
+  latestDate: Date | null;
+  ageDays: number;
+  rowCount: number;
+  reason: string;
+}
+
+/**
+ * Fail-closed freshness check.
+ *
+ * A stale or short market series must block a live recommendation rather than
+ * quietly producing one from old prices, so this returns an explicit unusable
+ * state with the reason to surface to the user.
+ */
+export function assessMarketDataFreshness(
+  rows: MarketRow[],
+  now: Date = new Date(),
+  maxAgeDays: number = MAX_MARKET_DATA_AGE_DAYS,
+): MarketDataFreshness {
+  const latestDate = rows.at(-1)?.date ?? null;
+  if (!latestDate) {
+    return {
+      usable: false,
+      latestDate: null,
+      ageDays: Infinity,
+      rowCount: rows.length,
+      reason: "No market data could be read from the bundled source. A live recommendation is unavailable.",
+    };
+  }
+
+  const ageDays = Math.floor((now.getTime() - latestDate.getTime()) / 86_400_000);
+
+  if (rows.length < MIN_MARKET_HISTORY_ROWS) {
+    return {
+      usable: false,
+      latestDate,
+      ageDays,
+      rowCount: rows.length,
+      reason:
+        `Market data hold only ${rows.length} trading days; at least ${MIN_MARKET_HISTORY_ROWS} are required `
+        + "for the 90-day risk features. A live recommendation is unavailable.",
+    };
+  }
+
+  if (ageDays > maxAgeDays) {
+    return {
+      usable: false,
+      latestDate,
+      ageDays,
+      rowCount: rows.length,
+      reason:
+        `Market data are stale (latest ${latestDate.toLocaleDateString()}, ${ageDays} days old; `
+        + `the limit is ${maxAgeDays} days). A live recommendation is unavailable.`,
+    };
+  }
+
+  return {
+    usable: true,
+    latestDate,
+    ageDays,
+    rowCount: rows.length,
+    reason: `Market data current to ${latestDate.toLocaleDateString()} (${ageDays} days old); source: ${MARKET_DATASET.provenance}.`,
+  };
+}
+
 const MONTH_INDEX: Record<string, number> = {
   JAN: 0, FEB: 1, MAR: 2, APR: 3, MAY: 4,  JUN: 5,
   JUL: 6, AUG: 7, SEP: 8, OCT: 9, NOV: 10, DEC: 11,
 };
 
-function parseNiftyDate(s: string): Date {
-  // Format: "27-FEB-2026"
+function parseMarketDate(s: string): Date | null {
+  // Supports both the legacy "27-FEB-2026" file and ISO dates from the
+  // maintained NIFTY 50 source.
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
+  if (iso) {
+    const date = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    return date.getFullYear() === Number(iso[1]) && date.getMonth() === Number(iso[2]) - 1 && date.getDate() === Number(iso[3])
+      ? date
+      : null;
+  }
   const [day, mon, year] = s.trim().split("-");
-  return new Date(parseInt(year), MONTH_INDEX[mon.toUpperCase()], parseInt(day));
+  const month = MONTH_INDEX[mon?.toUpperCase()];
+  if (!day || !year || month === undefined) return null;
+  const date = new Date(Number(year), month, Number(day));
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 export function parseNiftyCSV(text: string): MarketRow[] {
@@ -29,9 +123,10 @@ export function parseNiftyCSV(text: string): MarketRow[] {
     const line = lines[i].trim();
     if (!line) continue;
     const cols = line.split(",");
-    const close = parseFloat(cols[4]);
-    if (isNaN(close)) continue;
-    rows.push({ date: parseNiftyDate(cols[0]), close });
+    const date = parseMarketDate(cols[0] ?? "");
+    const close = Number.parseFloat(cols[4] ?? "");
+    if (!date || !Number.isFinite(close) || close <= 0) continue;
+    rows.push({ date, close });
   }
 
   // Ensure chronological order (oldest first)

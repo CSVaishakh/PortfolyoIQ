@@ -1,6 +1,7 @@
 import type { PortfolioHolding } from "./portfolioParser";
 import type { MarketRow, MarketFeatures } from "./marketData";
 import { computeMarketFeatures } from "./marketData";
+import FEATURE_SPEC from "../../../packages/model-contract/feature-spec.json";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -33,20 +34,14 @@ export type FeatureVector = [
   number, number, number, number,
 ];
 
-export const FEATURE_NAMES = [
-  "num_stocks",
-  "max_stock_weight",
-  "top3_concentration",
-  "total_weight_drift",
-  "portfolio_return",
-  "portfolio_volatility",
-  "sector_concentration",
-  "days_since_last_rebalance",
-  "market_return_30d",
-  "market_volatility_30d",
-  "market_drawdown_90d",
-  "market_trend",
-] as const;
+export const FEATURE_NAMES = FEATURE_SPEC.featureNames;
+
+/** Must match the versioned platform model contract before weights are pooled. */
+export const MODEL_CONTRACT = {
+  featureVersion: FEATURE_SPEC.featureVersion,
+  scalerVersion: FEATURE_SPEC.scalerVersion,
+  modelVersion: FEATURE_SPEC.modelVersion,
+} as const;
 
 export interface LabeledDataset {
   X: number[][];
@@ -73,35 +68,8 @@ const VOLATILITY_THRESHOLD = 0.005;
 //   2. the browser (TF.js) and the model-service (sklearn) provably operate in the
 //      same space — their weights are directly comparable under FedAvg.
 // The constants below are mirrored verbatim in apps/model-service/app/main.py.
-export const SCALER_MEAN = [
-  8.952400,   // num_stocks
-  0.359684,   // max_stock_weight
-  0.564518,   // top3_concentration
-  0.432519,   // total_weight_drift
-  0.059413,   // portfolio_return
-  0.020793,   // portfolio_volatility
-  0.524913,   // sector_concentration
-  125.8444,   // days_since_last_rebalance
-  -0.000101,  // market_return_30d
-  0.027868,   // market_volatility_30d
-  -0.182608,  // market_drawdown_90d
-  0.498600,   // market_trend
-];
-
-export const SCALER_STD = [
-  3.763425,   // num_stocks
-  0.166928,   // max_stock_weight
-  0.250468,   // top3_concentration
-  0.237506,   // total_weight_drift
-  0.208244,   // portfolio_return
-  0.011298,   // portfolio_volatility
-  0.226788,   // sector_concentration
-  73.296687,  // days_since_last_rebalance
-  0.069579,   // market_return_30d
-  0.015645,   // market_volatility_30d
-  0.138651,   // market_drawdown_90d
-  0.500048,   // market_trend
-];
+export const SCALER_MEAN = FEATURE_SPEC.scalerMean;
+export const SCALER_STD = FEATURE_SPEC.scalerStd;
 
 /**
  * Standardize a single feature vector with the fixed scaler above.

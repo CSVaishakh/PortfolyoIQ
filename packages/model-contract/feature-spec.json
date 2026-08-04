@@ -1,0 +1,9 @@
+{
+  "featureVersion": 1,
+  "scalerVersion": 1,
+  "modelVersion": 1,
+  "labelVersion": 0,
+  "featureNames": ["num_stocks", "max_stock_weight", "top3_concentration", "total_weight_drift", "portfolio_return", "portfolio_volatility", "sector_concentration", "days_since_last_rebalance", "market_return_30d", "market_volatility_30d", "market_drawdown_90d", "market_trend"],
+  "scalerMean": [8.9524, 0.359684, 0.564518, 0.432519, 0.059413, 0.020793, 0.524913, 125.8444, -0.000101, 0.027868, -0.182608, 0.4986],
+  "scalerStd": [3.763425, 0.166928, 0.250468, 0.237506, 0.208244, 0.011298, 0.226788, 73.296687, 0.069579, 0.015645, 0.138651, 0.500048]
+}

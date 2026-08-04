@@ -12,6 +12,8 @@ class GlobalModel:
         self.model.fit(X, y)
 
     def getWeights(self):
+        if not hasattr(self.model, "coef_") or not hasattr(self.model, "intercept_"):
+            raise RuntimeError("model has not been trained or initialized with weights")
         return {
             "coeff": self.model.coef_.tolist(),
             "intercept": self.model.intercept_.tolist(),
@@ -26,8 +28,8 @@ class GlobalModel:
             raise ValueError(f"coeff must be a 1xN matrix, got {coef_arr.shape}")
         if coef_arr.shape[1] != N_FEATURES:
             raise ValueError(f"coeff must have {N_FEATURES} features, got {coef_arr.shape[1]}")
-        if int_arr.ndim != 1 or int_arr.shape[0] < 1:
-            raise ValueError("intercept must be a non-empty vector")
+        if int_arr.ndim != 1 or int_arr.shape[0] != 1:
+            raise ValueError("intercept must be a vector with exactly one value")
 
         if not np.isfinite(coef_arr).all() or not np.isfinite(int_arr).all():
             raise ValueError("weights contain non-finite values")

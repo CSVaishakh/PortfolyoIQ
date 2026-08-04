@@ -10,6 +10,10 @@ export interface PortfolioHolding {
   investment_volume: number; // Quantity column
   avg_buy_price: number;     // Average Buy Price column
   current_price: number;     // Current Price column
+  /** User-declared target allocation, retained as entered until resolved. */
+  target_weight?: number;
+  /** Optional tax-lot proxy for short/long-term gain estimation. */
+  purchase_date?: Date;
 }
 
 export interface ParseResult {
@@ -28,10 +32,28 @@ const REQUIRED_COLUMNS = [
   "current price",
 ] as const;
 
+const TARGET_WEIGHT_COLUMNS = ["target weight %", "target weight", "target allocation", "target allocation %"];
+const PURCHASE_DATE_COLUMNS = ["purchase date", "buy date", "acquisition date"];
+
 // ── Row mapper ────────────────────────────────────────────────────────────────
 
 function normalise(s: string): string {
   return s.trim().toLowerCase();
+}
+
+function firstValue(lookup: Record<string, string>, names: string[]): string | undefined {
+  return names.map((name) => lookup[name]?.trim()).find((value) => value);
+}
+
+function parsePurchaseDate(value: string): Date | null {
+  const iso = /^([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})$/.exec(value);
+  const dayFirst = /^([0-9]{1,2})[/-]([0-9]{1,2})[/-]([0-9]{4})$/.exec(value);
+  const parsed = iso
+    ? new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]))
+    : dayFirst
+      ? new Date(Number(dayFirst[3]), Number(dayFirst[2]) - 1, Number(dayFirst[1]))
+      : null;
+  return parsed && !Number.isNaN(parsed.getTime()) ? parsed : null;
 }
 
 function validateHeaders(headers: string[]): string[] {
@@ -74,6 +96,28 @@ function mapRow(
     return null;
   }
 
+  let target_weight: number | undefined;
+  const targetRaw = firstValue(lookup, TARGET_WEIGHT_COLUMNS);
+  if (targetRaw) {
+    const parsed = Number.parseFloat(targetRaw.replace("%", ""));
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      errors.push(`Row ${rowIndex}: target weight must be a non-negative number`);
+    } else {
+      target_weight = parsed;
+    }
+  }
+
+  let purchase_date: Date | undefined;
+  const purchaseDateRaw = firstValue(lookup, PURCHASE_DATE_COLUMNS);
+  if (purchaseDateRaw) {
+    const parsed = parsePurchaseDate(purchaseDateRaw);
+    if (!parsed || parsed.getTime() > Date.now()) {
+      errors.push(`Row ${rowIndex}: purchase date must be a past DD-MM-YYYY or YYYY-MM-DD date`);
+    } else {
+      purchase_date = parsed;
+    }
+  }
+
   return {
     symbol,
     sector,
@@ -81,7 +125,36 @@ function mapRow(
     avg_buy_price: avgBuy,
     current_price: curPrice,
     ...(lookup["isin"] ? { isin: lookup["isin"].trim() } : {}),
+    ...(target_weight === undefined ? {} : { target_weight }),
+    ...(purchase_date ? { purchase_date } : {}),
   };
+}
+
+export interface ResolvedTargets {
+  targets: number[];
+  source: "declared" | "missing" | "invalid";
+  notes: string[];
+}
+
+/** Resolve declared targets to fractions summing to one. A target mandate is required. */
+export function resolveTargetWeights(holdings: PortfolioHolding[]): ResolvedTargets {
+  if (!holdings.length) return { targets: [], source: "missing", notes: [] };
+  if (holdings.some((holding) => holding.target_weight === undefined)) {
+    return {
+      targets: [],
+      source: "missing",
+      notes: ["A target weight is required for every holding before a live recommendation can be produced."],
+    };
+  }
+  const raw = holdings.map((holding) => holding.target_weight!);
+  const total = raw.reduce((sum, weight) => sum + weight, 0);
+  if (!Number.isFinite(total) || total <= 0) {
+    return { targets: [], source: "invalid", notes: ["Declared target weights must add to a positive total."] };
+  }
+  const notes = Math.abs(total - 1) < 0.01 || Math.abs(total - 100) < 1
+    ? []
+    : [`Declared targets sum to ${total.toFixed(2)} and were normalized to 100%.`];
+  return { targets: raw.map((weight) => weight / total), source: "declared", notes };
 }
 
 // ── CSV parser ────────────────────────────────────────────────────────────────

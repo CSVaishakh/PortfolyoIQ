@@ -3,8 +3,8 @@
 import { useRef, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { parsePortfolioFile } from "@/lib/portfolioParser";
-import { parseNiftyCSV, getLatestMarketFeatures } from "@/lib/marketData";
+import { parsePortfolioFile, resolveTargetWeights } from "@/lib/portfolioParser";
+import { MARKET_DATASET, parseNiftyCSV, getLatestMarketFeatures, assessMarketDataFreshness } from "@/lib/marketData";
 import {
   computePortfolioFeatures,
   buildFeatureVector,
@@ -13,13 +13,19 @@ import {
   standardizeFeatureMatrix,
   computeLabelScore,
   evaluateConditions,
+  MODEL_CONTRACT,
   type PortfolioFeatures,
   type FeatureVector,
   type ConditionResult,
 } from "@/lib/featureEngineering";
+import { decideRebalance, type AccountType, type RebalanceDecision } from "@/lib/rebalanceEconomics";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
-const MARKET_CSV = "/dataset/NIFTY%20100-01-03-2025-to-01-03-2026.csv";
+const MARKET_CSV = "/dataset/nifty50-15y.csv";
+// Re-enable only after P2's outcome-based label/backtest pipeline replaces the
+// former heuristic labels. Sending rule-oracle updates through FedAvg is worse
+// than not training at all.
+const FEDERATED_TRAINING_ENABLED = false;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -39,6 +45,17 @@ interface PredictionResult {
   portfolioFeatures: PortfolioFeatures;
   conditions: ConditionResult[];
   featureVector: FeatureVector;
+  decision: RebalanceDecision;
+  globalModelIsDemo: boolean;
+}
+
+interface GlobalModelResponse {
+  coef: number[][];
+  intercept: number[];
+  feature_version: number;
+  scaler_version: number;
+  model_version: number;
+  demo?: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -60,6 +77,10 @@ export default function InteractClient() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [lastRebalanceDate, setLastRebalanceDate] = useState("");
+  const [cashAvailable, setCashAvailable] = useState("0");
+  const [horizonDays, setHorizonDays] = useState("365");
+  const [riskAversion, setRiskAversion] = useState("3");
+  const [accountType, setAccountType] = useState<AccountType>("taxable");
   const [dragging, setDragging] = useState(false);
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<LogEntry[]>([]);
@@ -112,13 +133,27 @@ export default function InteractClient() {
         setRunning(false);
         return;
       }
+      const resolvedTargets = resolveTargetWeights(holdings);
+      if (resolvedTargets.source !== "declared") {
+        for (const note of resolvedTargets.notes) addLog(note, "error");
+        addLog("A live recommendation is unavailable until a complete target allocation is supplied.", "error");
+        return;
+      }
       addLog(`Portfolio parsed — ${holdings.length} holdings loaded.`, "ok");
 
       // ── Step 2: Load market data (latest row only needed for features) ───────
-      addLog("Loading NIFTY 100 market data…");
+      addLog(`Loading ${MARKET_DATASET.benchmark} market data…`);
       const csvText = await fetch(MARKET_CSV).then((r) => r.text());
       const marketRows = parseNiftyCSV(csvText);
-      addLog(`Market data loaded — ${marketRows.length} trading days.`, "ok");
+      const freshness = assessMarketDataFreshness(marketRows);
+      if (!freshness.usable) {
+        addLog(freshness.reason, "error");
+        return;
+      }
+      addLog(
+        `Market data loaded — ${freshness.rowCount} trading days from ${MARKET_DATASET.coverageStart}. ${freshness.reason}`,
+        "ok",
+      );
 
       // ── Step 3: Compute portfolio features ───────────────────────────────────
       addLog("Computing portfolio features…");
@@ -148,6 +183,22 @@ export default function InteractClient() {
       // ── Step 5: Build feature vector ──────────────────────────────────────────
       const daysRebalance = lastRebalanceDate ? daysSince(lastRebalanceDate) : 0;
       const fv = buildFeatureVector(pf, mf, daysRebalance) as FeatureVector;
+      for (const note of resolvedTargets.notes) addLog(note, "warn");
+      const decision = decideRebalance(
+        holdings,
+        resolvedTargets.targets,
+        mf.market_volatility_30d * Math.sqrt(252),
+        {
+          cashAvailableInr: Number(cashAvailable),
+          horizonDays: Number(horizonDays),
+          riskAversion: Number(riskAversion),
+          accountType,
+        },
+      );
+      addLog(
+        `Economic decision: ${decision.action} — estimated net benefit ${decision.netBenefitBps.toFixed(1)} bps over the review horizon.`,
+        decision.action === "REBALANCE" ? "ok" : "info",
+      );
       addLog(
         `Feature vector [num_stocks=${fv[0]}, max_wt=${fv[1].toFixed(3)}, top3=${fv[2].toFixed(3)}, ` +
         `drift=${fv[3].toFixed(3)}, ret=${fv[4].toFixed(4)}, vol=${fv[5].toFixed(6)}, ` +
@@ -163,6 +214,7 @@ export default function InteractClient() {
       let initialCoef: number[][] | null = null;
       let initialIntercept: number[] | null = null;
       let hasGlobalModel = false;
+      let globalModelIsDemo = false;
 
       if (token) {
         try {
@@ -170,11 +222,19 @@ export default function InteractClient() {
             headers: { token: token },
           });
           if (res.ok) {
-            const data = await res.json();
-            initialCoef = data.coef;
-            initialIntercept = data.intercept;
-            hasGlobalModel = !!initialCoef && !!initialIntercept;
-            addLog("Global weights loaded.", "ok");
+            const data = await res.json() as GlobalModelResponse;
+            const matchesContract = data.feature_version === MODEL_CONTRACT.featureVersion
+              && data.scaler_version === MODEL_CONTRACT.scalerVersion
+              && data.model_version === MODEL_CONTRACT.modelVersion;
+            if (!matchesContract) {
+              addLog("Global model uses an incompatible feature contract — falling back to the rule-based assessment.", "warn");
+            } else {
+              initialCoef = data.coef;
+              initialIntercept = data.intercept;
+              globalModelIsDemo = data.demo === true;
+              hasGlobalModel = !!initialCoef && !!initialIntercept;
+              addLog("Global weights loaded.", "ok");
+            }
           } else {
             addLog("No global model seeded yet — falling back to the rule-based assessment.", "warn");
           }
@@ -233,7 +293,7 @@ export default function InteractClient() {
       let contributed = false;
       let contributionSamples = 0;
 
-      if (token && hasGlobalModel) {
+      if (token && hasGlobalModel && FEDERATED_TRAINING_ENABLED) {
         addLog("Building synthetic local dataset for FL contribution…");
         const localDataset = buildTrainingDataset(pf, marketRows);
 
@@ -264,14 +324,14 @@ export default function InteractClient() {
 
           let bestValAcc = -1;
           let patience = 5;
-          let bestWeights: { coef: number[][]; intercept: number[] } | null = null;
+          const bestWeights: { value: { coef: number[][]; intercept: number[] } | null } = { value: null };
 
-          await model.fit(trX, trY, (_epoch, _logs) => {
+          await model.fit(trX, trY, () => {
             const valAcc = model.score(vaX, vaY);
             if (valAcc > bestValAcc) {
               bestValAcc = valAcc;
               patience = 5;
-              bestWeights = model.getWeights();
+              bestWeights.value = model.getWeights();
             } else {
               patience -= 1;
               if (patience <= 0) return false; // early stop
@@ -279,7 +339,9 @@ export default function InteractClient() {
             return true;
           });
 
-          if (bestWeights) model.setWeights(bestWeights.coef, bestWeights.intercept);
+          if (bestWeights.value) {
+            model.setWeights(bestWeights.value.coef, bestWeights.value.intercept);
+          }
           addLog(
             `Local fine-tune complete — best held-out accuracy ${(bestValAcc * 100).toFixed(1)}%.`,
             bestValAcc > 0 ? "ok" : "warn"
@@ -294,7 +356,15 @@ export default function InteractClient() {
                 "Content-Type": "application/json",
                 token: token,
               },
-              body: JSON.stringify({ coef, intercept, n_samples: localDataset.X.length }),
+              body: JSON.stringify({
+                coef,
+                intercept,
+                n_samples: localDataset.X.length,
+                feature_version: MODEL_CONTRACT.featureVersion,
+                scaler_version: MODEL_CONTRACT.scalerVersion,
+                model_version: MODEL_CONTRACT.modelVersion,
+                validation_auc: bestValAcc,
+              }),
             });
             if (res.ok) {
               contributed = true;
@@ -308,6 +378,8 @@ export default function InteractClient() {
             addLog("Weight upload failed — could not reach server.", "warn");
           }
         }
+      } else if (token && hasGlobalModel) {
+        addLog("Federated contribution is paused until outcome-based training data are available.", "warn");
       } else if (token && !hasGlobalModel) {
         addLog("No global model to warm-start from — contribution skipped.", "warn");
       } else {
@@ -316,7 +388,7 @@ export default function InteractClient() {
 
       // ── Done ──────────────────────────────────────────────────────────────────
       setResult({
-        label: predictedLabel,
+        label: decision.action === "REBALANCE" ? 1 : 0,
         probability: pRebalance,
         source,
         contributed,
@@ -324,6 +396,8 @@ export default function InteractClient() {
         portfolioFeatures: pf,
         conditions,
         featureVector: fv,
+        decision,
+        globalModelIsDemo,
       });
 
     } catch (err) {
@@ -375,7 +449,7 @@ export default function InteractClient() {
             <p className="text-sm font-medium text-indigo-300">Step 1 — Download the template</p>
             <p className="text-xs text-zinc-400 mt-0.5">
               Fill in your holdings.{" "}
-              <span className="text-zinc-300 font-mono">Symbol · ISIN · Sector · Quantity · Average Buy Price · Current Price</span>
+              <span className="text-zinc-300 font-mono">Symbol · ISIN · Sector · Quantity · Average Buy Price · Current Price · Target Weight % · Purchase Date</span>
             </p>
           </div>
           <a
@@ -432,6 +506,7 @@ export default function InteractClient() {
           <div>
             <p className="text-xs font-medium text-zinc-400 mb-2">Step 3 — Configure &amp; run</p>
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 space-y-5">
+              <p className="text-xs text-yellow-300">Target Weight % is required for every holding. Prices, tax, and costs remain estimates.</p>
               <div>
                 <label className="block text-xs font-medium text-zinc-400 mb-2">
                   When did you last rebalance?
@@ -448,6 +523,54 @@ export default function InteractClient() {
                     {daysSince(lastRebalanceDate)} days ago
                   </p>
                 )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block text-xs font-medium text-zinc-400">
+                  Available cash (₹)
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={cashAvailable}
+                    onChange={(e) => setCashAvailable(e.target.value)}
+                    className="w-full mt-2 px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-indigo-500"
+                  />
+                </label>
+                <label className="block text-xs font-medium text-zinc-400">
+                  Horizon (days)
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={horizonDays}
+                    onChange={(e) => setHorizonDays(e.target.value)}
+                    className="w-full mt-2 px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-indigo-500"
+                  />
+                </label>
+                <label className="block text-xs font-medium text-zinc-400">
+                  Risk preference (0–10)
+                  <input
+                    type="number"
+                    min="0"
+                    max="10"
+                    step="0.5"
+                    value={riskAversion}
+                    onChange={(e) => setRiskAversion(e.target.value)}
+                    className="w-full mt-2 px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-indigo-500"
+                  />
+                </label>
+                <label className="block text-xs font-medium text-zinc-400">
+                  Account type
+                  <select
+                    value={accountType}
+                    onChange={(e) => setAccountType(e.target.value as AccountType)}
+                    className="w-full mt-2 px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="taxable">Taxable</option>
+                    <option value="tax-advantaged">Tax-advantaged</option>
+                  </select>
+                </label>
               </div>
 
               <button
@@ -518,18 +641,15 @@ export default function InteractClient() {
                     {result.label === 1 ? "⚖ Rebalance" : "✓ Hold"}
                   </p>
                   <p className="text-sm text-zinc-400 mt-1">
-                    Confidence:{" "}
-                    <span className="text-white font-medium">
-                      {(Math.max(result.probability, 1 - result.probability) * 100).toFixed(1)}%
-                    </span>
-                    {" · "}P(rebalance) = {(result.probability * 100).toFixed(1)}%
+                    Estimated net economic benefit: <span className="text-white font-medium">{result.decision.netBenefitBps.toFixed(1)} bps</span>
+                    {" · "}implementation cost: {result.decision.costBps.toFixed(1)} bps
                   </p>
                 </div>
                 <div className="text-right text-xs text-zinc-500 space-y-0.5">
                   <p>
                     {result.source === "global"
-                      ? "Global federated model · standardized features"
-                      : "Rule-based fallback (no global model seeded)"}
+                      ? `${result.globalModelIsDemo ? "Synthetic demo" : "Secondary global"} ML signal · P(rebalance) ${(result.probability * 100).toFixed(1)}%`
+                      : "Secondary ML signal unavailable"}
                   </p>
                   {result.contributed && (
                     <p className="text-indigo-400">
@@ -539,6 +659,36 @@ export default function InteractClient() {
                 </div>
               </div>
             </div>
+
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+              <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Target-relative decision</h2>
+              <p className="text-sm text-zinc-300">{result.decision.reasons[0]}</p>
+              <p className="text-xs text-zinc-500 mt-2">Tracking error proxy {(result.decision.trackingError * 100).toFixed(2)}% · turnover {(result.decision.turnover * 100).toFixed(1)}% · estimated tax {result.decision.taxBps.toFixed(1)} bps</p>
+              <p className="text-xs text-zinc-500 mt-1">Cash reconciliation: ₹{result.decision.openingCashInr.toLocaleString("en-IN")} available → ₹{result.decision.endingCashInr.toLocaleString("en-IN", { maximumFractionDigits: 0 })} after proposed trades, estimated tax, and costs.</p>
+              {result.decision.caveats.map((caveat) => <p key={caveat} className="text-xs text-yellow-300 mt-1">{caveat}</p>)}
+            </div>
+
+            {result.decision.trades.some((trade) => trade.tradeShares !== 0) && (
+              <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 overflow-x-auto">
+                <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Executable trade list</h2>
+                <table className="w-full text-sm">
+                  <thead className="text-xs text-zinc-500 text-left border-b border-zinc-800">
+                    <tr><th className="pb-2 font-medium">Holding</th><th className="pb-2 font-medium">Current</th><th className="pb-2 font-medium">Target</th><th className="pb-2 font-medium text-right">Order</th><th className="pb-2 font-medium text-right">Estimated value</th></tr>
+                  </thead>
+                  <tbody>
+                    {result.decision.trades.filter((trade) => trade.tradeShares !== 0).map((trade) => (
+                      <tr key={trade.symbol} className="border-b border-zinc-800/60">
+                        <td className="py-2 text-zinc-200">{trade.symbol}</td>
+                        <td className="py-2 text-zinc-400">{fmt(trade.currentWeight, 1)}</td>
+                        <td className="py-2 text-zinc-400">{fmt(trade.targetWeight, 1)}</td>
+                        <td className={trade.tradeShares > 0 ? "py-2 text-right text-emerald-400" : "py-2 text-right text-orange-400"}>{trade.tradeShares > 0 ? `Buy ${trade.tradeShares}` : `Sell ${-trade.tradeShares}`}</td>
+                        <td className="py-2 text-right text-zinc-200">₹{Math.abs(trade.tradeValueInr).toLocaleString("en-IN", { maximumFractionDigits: 0 })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* Condition groups */}
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
@@ -593,7 +743,7 @@ export default function InteractClient() {
             {/* Market conditions */}
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
               <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-                Current Market Conditions (NIFTY 100)
+                Current Market Conditions ({MARKET_DATASET.benchmark})
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {[

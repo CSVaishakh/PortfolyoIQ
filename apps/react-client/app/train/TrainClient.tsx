@@ -86,7 +86,7 @@ export default function TrainClient() {
     setStage("done");
   }
 
-  // ── Seed from dataset.csv ────────────────────────────────────────────────────
+  // ── Seed from demo-dataset.csv ────────────────────────────────────────────────────
 
   async function handleSeed() {
     setStage("seeding");
@@ -212,9 +212,9 @@ export default function TrainClient() {
             {/* ── Seed from dataset card ────────────────────────────────── */}
             <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-6 space-y-4">
               <div>
-                <p className="font-medium text-sm">Seed — train on <span className="font-mono text-violet-300">dataset.csv</span></p>
+                <p className="font-medium text-sm">Seed — train on <span className="font-mono text-violet-300">demo-dataset.csv</span></p>
                 <p className="text-xs text-zinc-500 mt-0.5">
-                  Trains the sklearn model directly on the 327-row bundled dataset. Use this to initialise the global model before any clients connect.
+                  Trains the sklearn model on the 30,000-row synthetic demonstration dataset and reports a reproducible hold-out evaluation. It is for the paper/demo only.
                 </p>
               </div>
 
@@ -226,7 +226,7 @@ export default function TrainClient() {
               ) : (
                 <button onClick={handleSeed}
                   className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-600 rounded-lg text-sm font-semibold transition-colors">
-                  Seed from dataset.csv
+                  Seed from demo-dataset.csv
                 </button>
               )}
 
