@@ -14,10 +14,11 @@
     "dev": "npm run db:start && concurrently -n \"platform,client,model\" -c \"blue,green,yellow\" \"npm run dev:platform\" \"npm run dev:client\" \"npm run dev:model\"",
     "dev:platform": "turbo run dev --filter=platform-service",
     "dev:client": "turbo run dev --filter=react-client",
-    "dev:model": "bash -c 'cd apps/model-service && source .venv/bin/activate && PORT=$(grep -E \"^PORT\" .env | tr -d \" \" | cut -d= -f2) && uvicorn app.main:app --env-file .env --reload --host 0.0.0.0 --port ${PORT:-8000}'",
+    "dev:model": "bash -c 'cd apps/model-service && source .venv/bin/activate && ENV_FILE=$([ -f .env.local ] && echo .env.local || echo .env) && PORT=$(grep -E \"^PORT\" $ENV_FILE | tr -d \" \" | cut -d= -f2) && uvicorn app.main:app --env-file $ENV_FILE --reload --host 0.0.0.0 --port ${PORT:-8000}'",
     "build": "turbo run build",
-    "db:start": "docker compose -f packages/database/docker-compose.yml up -d db",
-    "db:stop": "docker compose -f packages/database/docker-compose.yml stop db",
+    "db:env": "bash -c '[ -f packages/database/.env.local ] && echo packages/database/.env.local || echo packages/database/.env'",
+    "db:start": "bash -c 'docker compose --env-file $(npm run --silent db:env) -f packages/database/docker-compose.yml up -d db'",
+    "db:stop": "bash -c 'docker compose --env-file $(npm run --silent db:env) -f packages/database/docker-compose.yml stop db'",
     "db:shell": "docker exec -it portfolio-rebalancing-db psql -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-portfolio_rebalancing}",
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
@@ -25,7 +26,7 @@
     "db:studio": "turbo run db:studio",
     "db:clear": "docker exec portfolio-rebalancing-db psql -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-portfolio_rebalancing} -c \"TRUNCATE usermodelhistory, globalmodelhistory RESTART IDENTITY; TRUNCATE users RESTART IDENTITY CASCADE;\"",
     "db:clear:weights": "docker exec portfolio-rebalancing-db psql -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-portfolio_rebalancing} -c \"TRUNCATE usermodelhistory, globalmodelhistory RESTART IDENTITY;\"",
-    "db:reset": "docker compose -f packages/database/docker-compose.yml down -v && npm run db:start && turbo run db:push",
+    "db:reset": "bash -c 'docker compose --env-file $(npm run --silent db:env) -f packages/database/docker-compose.yml down -v' && npm run db:start && turbo run db:push",
     "test": "turbo run test"
   },
   "dependencies": {

@@ -243,16 +243,31 @@ npm install
 
 ### 2. Environment variables
 
-`.env` files are **not** tracked in git. Copy each example and fill in your own
-secrets:
+Every service has a tracked `.env.example` template. Your real values go in
+`.env.local`, which is git-ignored everywhere. Copy each example:
 
 ```bash
-cp apps/platform-service/.env.example apps/platform-service/.env
-cp apps/model-service/.env.example    apps/model-service/.env
-cp packages/database/.env.example     packages/database/.env
+cp apps/platform-service/.env.example apps/platform-service/.env.local
+cp apps/model-service/.env.example    apps/model-service/.env.local
+cp apps/react-client/.env.example     apps/react-client/.env.local
+cp packages/database/.env.example     packages/database/.env.local
 ```
 
-**`apps/platform-service/.env`**
+Then generate the three secrets — never invent them by hand:
+
+```bash
+openssl rand -hex 32   # JWT_SECRET
+openssl rand -hex 32   # ADMIN_SECRET
+openssl rand -hex 32   # MODEL_SERVICE_SECRET — same value in both services
+```
+
+`.env.local` takes precedence over `.env` in every service: the platform service
+loads `[.env.local, .env]` via `src/env.ts`, `npm run dev:model` passes
+`.env.local` to `uvicorn --env-file` when it exists, the `db:*` scripts pass it
+to `docker compose --env-file`, and Next.js and `drizzle.config.ts` read it
+natively. A plain `.env` still works as a fallback.
+
+**`apps/platform-service/.env.local`**
 ```env
 PORT=5000
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/portfolio_rebalancing
@@ -267,13 +282,13 @@ OUTCOME_BASED_MODEL_ENABLED=false
 DEMO_MODEL_ENABLED=true
 ```
 
-**`apps/react-client/.env`**
+**`apps/react-client/.env.local`**
 ```env
 PORT=3000
 NEXT_PUBLIC_API_URL=http://localhost:5000
 ```
 
-**`apps/model-service/.env`**
+**`apps/model-service/.env.local`**
 ```env
 PORT=8000
 MODEL_SERVICE_SECRET=a-different-internal-service-secret
