@@ -386,16 +386,23 @@ same participant set and write competing "latest" snapshots.
 
 ## Portfolio Template
 
-Download the template from the `/interact` page. Required columns:
+Download the template from the `/interact` page. Regenerate the workbook with
+`node scripts/generate-template.mjs` from `apps/react-client` after changing any
+column.
 
-| Column | Description |
-|--------|-------------|
-| Symbol | Stock ticker (e.g. RELIANCE) |
-| ISIN | ISIN code |
-| Sector | Sector name |
-| Quantity | Number of shares held |
-| Average Buy Price | Your average purchase price |
-| Current Price | Current market price |
+| Column | Required | Description |
+|--------|----------|-------------|
+| Symbol | yes | Stock ticker (e.g. RELIANCE) |
+| ISIN | no | ISIN code |
+| Sector | yes | Sector name |
+| Quantity | yes | Number of shares held |
+| Average Buy Price | yes | Your average purchase price |
+| Current Price | yes | Current market price |
+| Target Weight % | yes for a live decision | Your mandate for this holding. Without it there is no target to be relative to, so the decision engine has nothing to measure drift against. Accepted aliases: `Target Weight`, `Target Allocation`, `Target Allocation %`. |
+| Purchase Date | optional | `DD-MM-YYYY`. Drives the short/long-term capital-gains split; omitting it makes the tax estimate less precise. Aliases: `Buy Date`, `Acquisition Date`. |
+
+Declared targets that do not sum to 100 are normalized, and the result is
+reported in the parse notes rather than silently applied.
 
 ---
 
