@@ -93,7 +93,7 @@ test("migrating a populated pre-n_samples database preserves data and applies de
   const client = await connect();
   if (!client) {
     t.skip(
-      "No reachable PostgreSQL. Run `npm run db:start`, then set TEST_DATABASE_URL "
+      "No reachable PostgreSQL. Run `bun run db:start`, then set TEST_DATABASE_URL "
       + "(or DATABASE_URL) to exercise this test.",
     );
     return;

@@ -1,33 +1,32 @@
 {
   "name": "portfolio-rebalancing",
   "private": true,
-  "packageManager": "npm@11.8.0",
+  "packageManager": "bun@1.3.14",
   "devDependencies": {
-    "concurrently": "^9.2.1",
-    "turbo": "latest"
+    "concurrently": "^9.2.1"
   },
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run db:start && concurrently -n \"platform,client,model\" -c \"blue,green,yellow\" \"npm run dev:platform\" \"npm run dev:client\" \"npm run dev:model\"",
-    "dev:platform": "turbo run dev --filter=platform-service",
-    "dev:client": "turbo run dev --filter=react-client",
+    "dev": "bun run db:start && concurrently -n \"platform,client,model\" -c \"blue,green,yellow\" \"bun run dev:platform\" \"bun run dev:client\" \"bun run dev:model\"",
+    "dev:platform": "bun run --filter platform-service dev",
+    "dev:client": "bun run --filter react-client dev",
     "dev:model": "bash -c 'cd apps/model-service && source .venv/bin/activate && ENV_FILE=$([ -f .env.local ] && echo .env.local || echo .env) && PORT=$(grep -E \"^PORT\" $ENV_FILE | tr -d \" \" | cut -d= -f2) && uvicorn app.main:app --env-file $ENV_FILE --reload --host 0.0.0.0 --port ${PORT:-8000}'",
-    "build": "turbo run build",
+    "build": "bun run --filter '*' build",
     "db:env": "bash -c '[ -f packages/database/.env.local ] && echo packages/database/.env.local || echo packages/database/.env'",
-    "db:start": "bash -c 'docker compose --env-file $(npm run --silent db:env) -f packages/database/docker-compose.yml up -d db'",
-    "db:stop": "bash -c 'docker compose --env-file $(npm run --silent db:env) -f packages/database/docker-compose.yml stop db'",
+    "db:start": "bash -c 'docker compose --env-file $(bun run --silent db:env) -f packages/database/docker-compose.yml up -d db'",
+    "db:stop": "bash -c 'docker compose --env-file $(bun run --silent db:env) -f packages/database/docker-compose.yml stop db'",
     "db:shell": "docker exec -it portfolio-rebalancing-db psql -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-portfolio_rebalancing}",
-    "db:generate": "turbo run db:generate",
-    "db:migrate": "turbo run db:migrate",
-    "db:push": "turbo run db:push",
-    "db:studio": "turbo run db:studio",
+    "db:generate": "bun run --filter database db:generate",
+    "db:migrate": "bun run --filter database db:migrate",
+    "db:push": "bun run --filter database db:push",
+    "db:studio": "bun run --filter database db:studio",
     "db:clear": "docker exec portfolio-rebalancing-db psql -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-portfolio_rebalancing} -c \"TRUNCATE usermodelhistory, globalmodelhistory RESTART IDENTITY; TRUNCATE users RESTART IDENTITY CASCADE;\"",
     "db:clear:weights": "docker exec portfolio-rebalancing-db psql -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-portfolio_rebalancing} -c \"TRUNCATE usermodelhistory, globalmodelhistory RESTART IDENTITY;\"",
-    "db:reset": "bash -c 'docker compose --env-file $(npm run --silent db:env) -f packages/database/docker-compose.yml down -v' && npm run db:start && turbo run db:push",
-    "test": "turbo run test"
+    "db:reset": "bash -c 'docker compose --env-file $(bun run --silent db:env) -f packages/database/docker-compose.yml down -v' && bun run db:start && bun run --filter database db:push",
+    "test": "bun run --filter '*' test"
   },
   "dependencies": {
     "jsonwebtoken": "^9.0.3"

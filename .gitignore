@@ -3,7 +3,6 @@ __pycache__
 node_modules
 dist/
 .next/
-.turbo/
 .vscode
 
 # Local secrets. `.env.example` is the tracked template; everything else is not.

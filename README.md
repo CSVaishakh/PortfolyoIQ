@@ -67,7 +67,7 @@ production-promotion decision after validation, not a normal setup step.
 | Database | PostgreSQL 17 (Docker) |
 | ML service | FastAPI, scikit-learn, pandas, NumPy |
 | ML server | Uvicorn |
-| Monorepo | Turborepo + npm workspaces |
+| Monorepo | Bun workspaces |
 | Auth | JWT (jsonwebtoken) + bcryptjs |
 
 ---
@@ -229,7 +229,7 @@ header, and the two training routes additionally require `DEMO_MODEL_ENABLED`.
 
 ### Prerequisites
 
-- Node.js 18+, npm 11.8.0
+- Bun 1.3+
 - Python 3.11 + virtualenv
 - Docker & Docker Compose
 
@@ -238,7 +238,7 @@ header, and the two training routes additionally require `DEMO_MODEL_ENABLED`.
 ```bash
 git clone https://github.com/CSVaishakh/PortfolioRebalancing
 cd PortfolioRebalancing
-npm install
+bun install
 ```
 
 ### 2. Environment variables
@@ -262,7 +262,7 @@ openssl rand -hex 32   # MODEL_SERVICE_SECRET — same value in both services
 ```
 
 `.env.local` takes precedence over `.env` in every service: the platform service
-loads `[.env.local, .env]` via `src/env.ts`, `npm run dev:model` passes
+loads `[.env.local, .env]` via `src/env.ts`, `bun run dev:model` passes
 `.env.local` to `uvicorn --env-file` when it exists, the `db:*` scripts pass it
 to `docker compose --env-file`, and Next.js and `drizzle.config.ts` read it
 natively. A plain `.env` still works as a fallback.
@@ -313,7 +313,7 @@ pip install -r requirements.txt
 ### 4. Start everything
 
 ```bash
-npm run dev
+bun run dev
 ```
 
 This starts the database, platform service (:5000), React client (:3000), and model service (:8000) concurrently.
@@ -324,31 +324,31 @@ Navigate to `/train` in the browser, enter your `ADMIN_SECRET`, and click **Seed
 
 ---
 
-## NPM Scripts
+## Bun Scripts
 
 | Script | Description |
 |--------|-------------|
-| `npm run dev` | Start all services + database |
-| `npm run build` | Build all packages via Turbo |
-| `npm test` | Run every package's test suite via Turbo |
-| `npm run db:start` | Start PostgreSQL container |
-| `npm run db:stop` | Stop PostgreSQL container |
-| `npm run db:push` | Push Drizzle schema to database |
-| `npm run db:studio` | Open Drizzle Studio (DB GUI) |
-| `npm run db:shell` | Open psql shell |
-| `npm run db:clear` | Truncate all tables, reset sequences |
-| `npm run db:clear:weights` | Truncate model tables only (keep users) |
-| `npm run db:reset` | Destroy volume, recreate and push schema |
+| `bun run dev` | Start all services + database |
+| `bun run build` | Build all packages via Bun workspace filters |
+| `bun test` | Run every package's test suite via Bun workspace filters |
+| `bun run db:start` | Start PostgreSQL container |
+| `bun run db:stop` | Stop PostgreSQL container |
+| `bun run db:push` | Push Drizzle schema to database |
+| `bun run db:studio` | Open Drizzle Studio (DB GUI) |
+| `bun run db:shell` | Open psql shell |
+| `bun run db:clear` | Truncate all tables, reset sequences |
+| `bun run db:clear:weights` | Truncate model tables only (keep users) |
+| `bun run db:reset` | Destroy volume, recreate and push schema |
 
 ---
 
 ## Testing
 
 ```bash
-npm test                                  # every package, via Turbo
-npm test --workspace apps/react-client    # financial decision + parity tests
-npm test --workspace apps/platform-service # API, aggregation, migration, end-to-end
-cd apps/model-service && source .venv/bin/activate && npm test
+bun run test                                  # every package, via Bun workspace filters
+bun run --filter react-client test            # financial decision + parity tests
+bun run --filter platform-service test        # API, aggregation, migration, end-to-end
+cd apps/model-service && source .venv/bin/activate && bun run test
 ```
 
 | Area | Location | What it covers |
@@ -365,9 +365,9 @@ The migration test needs a reachable PostgreSQL and **skips** (it does not pass)
 when there is none. To run it:
 
 ```bash
-npm run db:start
+bun run db:start
 TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/portfolio_rebalancing \
-  npm test --workspace apps/platform-service
+  bun run --filter platform-service test
 ```
 
 It works inside a throwaway `migration_test_pre_n_samples` schema that it drops
