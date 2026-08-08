@@ -92,7 +92,10 @@ def validate_training_payload(body: object) -> tuple[np.ndarray, np.ndarray]:
 
     return X, y
 
-
+@app.get("/")
+async def healt(req: Request):
+   return "Status Ok!"
+   
 @app.post("/train")
 async def train(req: Request):
     """Train from raw observations, always applying the canonical scaler first."""
