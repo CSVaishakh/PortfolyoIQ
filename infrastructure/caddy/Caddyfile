@@ -1,8 +1,11 @@
 # PortfolioIQ reverse proxy.
 #
-# Application services are native EC2 processes, not containers, so this
-# container reaches them through the Docker host gateway rather than
-# "localhost" (which would resolve to this container itself).
+# Application services are native EC2 processes, not containers, bound to
+# 127.0.0.1 only. This container runs with `network_mode: host` (see
+# compose.yml) specifically so that "127.0.0.1" here means the same loopback
+# those services are actually listening on — a bridge network's
+# host.docker.internal resolves to the bridge gateway, a different interface
+# that a 127.0.0.1-bound service never answers on.
 #
 # Route split is deliberate: the React client owns a UI page at exactly
 # "/auth" (app/auth/), while the platform API separately owns "/auth/signup"
@@ -23,11 +26,11 @@ portfolyo-iq.duckdns.org {
 	}
 
 	handle @platformApi {
-		reverse_proxy host.docker.internal:5000
+		reverse_proxy 127.0.0.1:5000
 	}
 
 	handle {
-		reverse_proxy host.docker.internal:3000
+		reverse_proxy 127.0.0.1:3000
 	}
 
 	log {

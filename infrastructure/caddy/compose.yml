@@ -9,15 +9,20 @@ services:
     image: caddy:2-alpine
     container_name: portfolioiq-caddy
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
+    # Host networking, not bridge+extra_hosts: the app services bind to
+    # 127.0.0.1 only (deliberately, so nothing but same-host processes can
+    # reach them). From a bridge network, host.docker.internal resolves to
+    # the bridge gateway IP, which is a different interface than loopback —
+    # a service bound to 127.0.0.1 is unreachable through it, full stop.
+    # Host networking puts Caddy in the same network namespace as the app
+    # services, so "127.0.0.1" inside the container is the same loopback.
+    # (Confirmed by a real failure: loopback health checks in
+    # remote-deploy.sh passed, but Caddy still 502'd until this was fixed.)
+    network_mode: host
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
 
 volumes:
   caddy_data:
