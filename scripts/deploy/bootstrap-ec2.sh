@@ -130,7 +130,7 @@ MODEL_SERVICE_SECRET=REPLACE_MANUALLY_SEE_BELOW
 FEDERATED_CONTRIBUTIONS_ENABLED=false
 FEDERATED_AGGREGATION_ENABLED=false
 OUTCOME_BASED_MODEL_ENABLED=false
-DEMO_MODEL_ENABLED=false
+DEMO_MODEL_ENABLED=true
 EOF
   chmod 640 "$APP_ROOT/shared/platform-service.env"
   chown root:"$DEPLOY_USER" "$APP_ROOT/shared/platform-service.env"
@@ -148,7 +148,7 @@ if [[ ! -f "$APP_ROOT/shared/model-service.env" ]]; then
 PORT=8000
 HOST=127.0.0.1
 MODEL_SERVICE_SECRET=REPLACE_MANUALLY_SEE_BELOW
-DEMO_MODEL_ENABLED=false
+DEMO_MODEL_ENABLED=true
 EOF
   chmod 640 "$APP_ROOT/shared/model-service.env"
   chown root:"$DEPLOY_USER" "$APP_ROOT/shared/model-service.env"

@@ -78,11 +78,13 @@ cp -a apps/platform-service/dist "$STAGE_DIR/apps/platform-service/"
 [[ -d apps/platform-service/node_modules ]] && cp -a apps/platform-service/node_modules "$STAGE_DIR/apps/platform-service/"
 cp apps/platform-service/package.json "$STAGE_DIR/apps/platform-service/"
 
-# model-service: app code + manifest only. demo-dataset.csv, dataset.csv,
-# tests/, and test.service.py are excluded — not required at runtime while
-# DEMO_MODEL_ENABLED=false, which is the production default.
+# model-service: app code + manifest + the demo dataset POST /train/dataset
+# reads when DEMO_MODEL_ENABLED=true. dataset.csv and test.service.py are
+# excluded — nothing at runtime reads them, only demo-dataset.csv is opened
+# by app/main.py.
 cp -a apps/model-service/app "$STAGE_DIR/apps/model-service/"
-cp apps/model-service/package.json apps/model-service/requirements.txt "$STAGE_DIR/apps/model-service/"
+cp apps/model-service/package.json apps/model-service/requirements.txt apps/model-service/demo-dataset.csv \
+  "$STAGE_DIR/apps/model-service/"
 
 # packages/database: the workspace import target for platform-service's
 # dist output, and the source of drizzle-kit migrate on the server (drizzle-kit
