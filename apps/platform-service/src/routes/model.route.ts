@@ -90,7 +90,7 @@ export function createHttpModelServiceClient(): ModelServiceClient {
 }
 
 export function createModelRouter(deps: ModelRouterDeps, config: ModelRouterConfig): Router {
-  const modelRouter = Router();
+  const modelRouter: Router = Router();
 
   function requireAdminSecret(req: Request, res: Response): boolean {
     const provided = req.headers["x-admin-secret"];

@@ -39,7 +39,7 @@ export function clientRouterConfigFromEnv(): ClientRouterConfig {
 }
 
 export function createClientRouter(deps: ClientRouterDeps, config: ClientRouterConfig): Router {
-  const clientRouter = Router();
+  const clientRouter: Router = Router();
 
   /** Last accepted contribution per account, used for the per-account throttle. */
   const lastContributionAt = new Map<number, number>();
