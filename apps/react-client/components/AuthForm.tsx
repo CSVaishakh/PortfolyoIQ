@@ -1,207 +1,284 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { Alert } from "@/components/ui/Alert";
+import { PasswordField, TextField } from "@/components/ui/Field";
+import { cn } from "@/components/ui/cn";
+import { signIn, signUp } from "@/lib/api";
+import { writeToken } from "@/lib/session";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000";
+type Mode = "signin" | "signup";
 
-interface Props {
-  defaultMode: "signin" | "signup";
+interface FieldErrors {
+  username?: string;
+  email?: string;
+  password?: string;
 }
 
+/** AU-03: validation runs before submission and reports per field. */
+function validate(mode: Mode, form: { username: string; email: string; password: string }): FieldErrors {
+  const errors: FieldErrors = {};
+
+  if (mode === "signup" && form.username.trim() === "") {
+    errors.username = "Enter your full name.";
+  }
+
+  if (form.email.trim() === "") {
+    errors.email = "Enter your email address.";
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+    errors.email = "That does not look like an email address.";
+  }
+
+  if (form.password === "") {
+    errors.password = "Enter your password.";
+  } else if (mode === "signup" && form.password.length < 8) {
+    errors.password = "Use at least 8 characters.";
+  }
+
+  return errors;
+}
+
+/** AU-09: a hint, not a gate — the server enforces no complexity rules. */
+function strengthHint(password: string): string {
+  if (password.length === 0) return "At least 8 characters.";
+  if (password.length < 8) return `${8 - password.length} more character(s) needed.`;
+  const varieties = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^a-zA-Z0-9]/].filter((re) =>
+    re.test(password),
+  ).length;
+  if (varieties >= 3) return "Strong enough.";
+  return "Long enough. Mixing cases, digits or symbols would help.";
+}
+
+interface Props {
+  defaultMode: Mode;
+}
+
+/**
+ * Sign in and sign up (AU-01).
+ *
+ * `/auth` renders without the application shell by design (GL-06): it is a
+ * single focused task, and the header's session control would be meaningless
+ * on it.
+ */
 export default function AuthForm({ defaultMode }: Props) {
   const router = useRouter();
-  const [mode, setMode] = useState<"signin" | "signup">(defaultMode);
+  const tablistRef = useRef<HTMLDivElement>(null);
+  const panelId = useId();
+
+  const [mode, setMode] = useState<Mode>(defaultMode);
   const [form, setForm] = useState({ username: "", email: "", password: "" });
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [serverError, setServerError] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  function toggle() {
-    setMode((m) => (m === "signin" ? "signup" : "signin"));
-    setError("");
+  function switchTo(next: Mode) {
+    setMode(next);
+    setErrors({});
+    setServerError("");
   }
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
-    setError("");
+  function update(patch: Partial<typeof form>) {
+    setForm((prev) => ({ ...prev, ...patch }));
+    // Clear a field's error as soon as the user starts correcting it.
+    const touched = Object.keys(patch)[0] as keyof FieldErrors;
+    if (errors[touched]) setErrors((prev) => ({ ...prev, [touched]: undefined }));
+    if (serverError) setServerError("");
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
 
-    try {
-      const endpoint = mode === "signup" ? "/auth/signup" : "/auth/signin";
-      const body =
-        mode === "signup"
-          ? { username: form.username, email: form.email, password: form.password }
-          : { email: form.email, password: form.password };
+    const found = validate(mode, form);
+    setErrors(found);
+    if (Object.keys(found).length > 0) return;
 
-      const res = await fetch(`${API_BASE}${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+    setBusy(true);
+    setServerError("");
 
-      const data = await res.json();
+    const result =
+      mode === "signup"
+        ? await signUp(form.username.trim(), form.email.trim(), form.password)
+        : await signIn(form.email.trim(), form.password);
 
-      if (!res.ok) {
-        setError(data.error ?? "Something went wrong. Please try again.");
-        return;
+    if (!result.ok) {
+      // AU-04: attribute the failure to its field where the server identifies one.
+      if (result.status === 409) {
+        setErrors({ email: result.error });
+      } else if (result.status === 401) {
+        setErrors({ password: "Those credentials were not recognised." });
+      } else {
+        setServerError(result.error);
       }
-
-      localStorage.setItem("token", data.token);
-      router.push("/interact");
-    } catch {
-      setError("Could not reach the server. Please check your connection.");
-    } finally {
-      setLoading(false);
+      setBusy(false);
+      return;
     }
+
+    writeToken(result.data.token);
+    // AU-07. Mandate state on /interact is component-local, so a sign-in detour
+    // mid-analysis loses it — recorded as the open half of GL-17.
+    router.push("/interact");
   }
+
+  const tabClass = (active: boolean) =>
+    cn(
+      "flex-1 py-sm rounded-md text-body-sm font-medium transition-colors",
+      active
+        ? "bg-surface-container-highest text-on-surface"
+        : "text-on-surface-variant hover:text-on-surface",
+    );
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center px-4">
-      {/* Background glow */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-150 h-150 bg-indigo-600/10 rounded-full blur-3xl" />
-      </div>
+    <main className="min-h-screen bg-background text-on-background flex items-center justify-center px-margin py-2xl">
+      <div
+        aria-hidden="true"
+        className="fixed inset-x-0 top-0 h-[480px] pointer-events-none"
+        style={{
+          background:
+            "radial-gradient(ellipse 50% 50% at 50% 0%, color-mix(in oklab, var(--color-primary) 10%, transparent), transparent 70%)",
+        }}
+      />
 
-      <div className="relative w-full max-w-md">
-        {/* Logo */}
-        <Link href="/" className="flex items-center justify-center gap-2 mb-8">
-          <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white font-bold text-sm">
-            P
-          </div>
-          <span className="text-white font-semibold text-lg tracking-tight">
-            PortfolioIQ
-          </span>
-        </Link>
-
-        {/* Card */}
-        <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-8 backdrop-blur-sm">
-          {/* Tab toggle */}
-          <div className="flex rounded-lg bg-zinc-800/60 p-1 mb-8">
-            <button
-              type="button"
-              onClick={() => { setMode("signup"); setError(""); }}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
-                mode === "signup"
-                  ? "bg-zinc-700 text-white"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              Sign Up
-            </button>
-            <button
-              type="button"
-              onClick={() => { setMode("signin"); setError(""); }}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-colors ${
-                mode === "signin"
-                  ? "bg-zinc-700 text-white"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              Sign In
-            </button>
-          </div>
-
-          <h1 className="text-xl font-semibold text-white mb-1">
-            {mode === "signin" ? "Welcome back" : "Create your account"}
+      {/* Explicit width: `max-w-md` would resolve against our `--spacing-md`
+          token rather than Tailwind's container scale. See globals.css. */}
+      <div className="relative w-full max-w-[28rem]">
+        <div className="text-center mb-xl">
+          {/* AX-09: exactly one h1 per route, and on a single-task screen the
+              wordmark is the page's name. */}
+          <h1 className="text-title-xl font-semibold tracking-tight">
+            <Link href="/" className="text-primary">
+              PortfolioIQ
+            </Link>
           </h1>
-          <p className="text-sm text-zinc-400 mb-6">
-            {mode === "signin"
-              ? "Sign in to access your portfolio dashboard."
-              : "Start rebalancing your portfolio with federated AI."}
+          <p className="text-body-sm text-on-surface-variant mt-xs">
+            {/* AU-08: an account adds the explanatory signal. It is not required
+                for a recommendation, and federated learning is not a user benefit. */}
+            An account adds the secondary model signal. The verdict itself works without one.
           </p>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === "signup" && (
-              <div>
-                <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                  Full name
-                </label>
-                <input
-                  type="text"
-                  name="username"
-                  required
-                  autoComplete="name"
-                  placeholder="Rahul Sharma"
-                  value={form.username}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
-                />
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                Email
-              </label>
-              <input
-                type="email"
-                name="email"
-                required
-                autoComplete="email"
-                placeholder="you@example.com"
-                value={form.email}
-                onChange={handleChange}
-                className="w-full px-4 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">
-                Password
-              </label>
-              <input
-                type="password"
-                name="password"
-                required
-                autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                placeholder={mode === "signup" ? "At least 8 characters" : "Your password"}
-                minLength={mode === "signup" ? 8 : undefined}
-                value={form.password}
-                onChange={handleChange}
-                className="w-full px-4 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500 transition-colors"
-              />
-            </div>
-
-            {error && (
-              <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2.5">
-                {error}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed rounded-lg text-sm font-semibold text-white transition-colors mt-2"
-            >
-              {loading
-                ? mode === "signin"
-                  ? "Signing in…"
-                  : "Creating account…"
-                : mode === "signin"
-                  ? "Sign In"
-                  : "Create Account"}
-            </button>
-          </form>
         </div>
 
-        {/* Switch mode link */}
-        <p className="text-center text-sm text-zinc-500 mt-5">
-          {mode === "signin" ? "Don't have an account? " : "Already have an account? "}
+        <div className="bg-surface-container border border-outline-variant/40 rounded-2xl p-lg">
+          <div
+            ref={tablistRef}
+            role="tablist"
+            aria-label="Sign in or create an account"
+            className="flex gap-xs rounded-lg bg-surface p-1 mb-lg"
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+              e.preventDefault();
+              const next = mode === "signin" ? "signup" : "signin";
+              switchTo(next);
+              tablistRef.current
+                ?.querySelector<HTMLButtonElement>(`#tab-${next}`)
+                ?.focus();
+            }}
+          >
+            <button
+              type="button"
+              role="tab"
+              id="tab-signin"
+              aria-selected={mode === "signin"}
+              aria-controls={panelId}
+              tabIndex={mode === "signin" ? 0 : -1}
+              onClick={() => switchTo("signin")}
+              className={tabClass(mode === "signin")}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="tab-signup"
+              aria-selected={mode === "signup"}
+              aria-controls={panelId}
+              tabIndex={mode === "signup" ? 0 : -1}
+              onClick={() => switchTo("signup")}
+              className={tabClass(mode === "signup")}
+            >
+              Sign up
+            </button>
+          </div>
+
+          <div id={panelId} role="tabpanel" aria-labelledby={`tab-${mode}`}>
+          <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-md">
+            {mode === "signup" && (
+              <TextField
+                label="Full name"
+                name="username"
+                value={form.username}
+                onChange={(v) => update({ username: v })}
+                autoComplete="name"
+                placeholder="Your name"
+                error={errors.username}
+                disabled={busy}
+              />
+            )}
+
+            <TextField
+              label="Email"
+              type="email"
+              name="email"
+              value={form.email}
+              onChange={(v) => update({ email: v })}
+              autoComplete="email"
+              placeholder="you@example.com"
+              error={errors.email}
+              disabled={busy}
+            />
+
+            <PasswordField
+              label="Password"
+              name="password"
+              value={form.password}
+              onChange={(v) => update({ password: v })}
+              autoComplete={mode === "signup" ? "new-password" : "current-password"}
+              placeholder={mode === "signup" ? "At least 8 characters" : "Your password"}
+              minLength={mode === "signup" ? 8 : undefined}
+              error={errors.password}
+              hint={mode === "signup" ? strengthHint(form.password) : undefined}
+              disabled={busy}
+            />
+
+            {serverError && (
+              <Alert tone="error" role="alert">
+                {serverError}
+              </Alert>
+            )}
+
+            <Button
+              type="submit"
+              fullWidth
+              busy={busy}
+              busyLabel={mode === "signin" ? "Signing in…" : "Creating account…"}
+            >
+              {mode === "signin" ? "Sign in" : "Create account"}
+              <ArrowRight aria-hidden="true" className="size-4" />
+            </Button>
+          </form>
+          </div>
+        </div>
+
+        <p className="text-center text-body-sm text-on-surface-variant mt-lg">
+          {mode === "signin" ? "No account yet? " : "Already have an account? "}
           <button
             type="button"
-            onClick={toggle}
-            className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+            onClick={() => switchTo(mode === "signin" ? "signup" : "signin")}
+            className="text-primary hover:text-primary-container font-medium transition-colors rounded"
           >
-            {mode === "signin" ? "Sign up free" : "Sign in"}
+            {mode === "signin" ? "Create one" : "Sign in"}
           </button>
         </p>
+
+        <p className="text-center text-label-xs font-normal text-on-surface-variant mt-md">
+          <Link href="/interact" className="text-primary hover:text-primary-container">
+            Continue without an account
+          </Link>{" "}
+          — the rebalancing verdict does not require one.
+        </p>
       </div>
-    </div>
+    </main>
   );
 }

@@ -563,35 +563,49 @@ idle ──file selected──> ready ──run──> running
 - **DS-01 (MUST)** Tokens MUST be declared once in `app/globals.css` under
   `@theme` and consumed by name everywhere.
 
+The palette below is the Material-3 dark scheme carried by the Stitch designs
+in `docs/stitch_screens/`, adopted 2026-08-08 when those designs were
+implemented. It replaces the indigo/zinc set this table previously specified;
+the roles are unchanged, only the values.
+
 | Token | Value | Use |
 |---|---|---|
-| `--color-surface-base` | `#0a0a0f` | Page background |
-| `--color-surface-raised` | `zinc-900 / 40%` | Cards, panels |
-| `--color-surface-input` | `zinc-800` | Form controls |
-| `--color-border-subtle` | `zinc-800` | Card and divider borders |
-| `--color-border-strong` | `zinc-700` | Input borders, hover |
-| `--color-text-primary` | `#ffffff` | Headings, values |
-| `--color-text-secondary` | `zinc-400` | Body, labels |
-| `--color-text-muted` | `zinc-500` | Captions, hints (minimum permitted) |
-| `--color-accent` | `indigo-600 / 500` | Primary actions, brand |
-| `--color-admin` | `violet-600` | Admin surfaces only |
-| `--color-positive` | `emerald-400` | Hold, success, buy |
-| `--color-attention` | `orange-400` | Rebalance, sell |
-| `--color-warning` | `yellow-300` | Caveats, degraded paths |
-| `--color-negative` | `red-400` | Errors, blocking states |
+| `--color-background` / `--color-surface` | `#13131b` | Page background |
+| `--color-surface-container-low` | `#1b1b23` | Recessed panels, footer |
+| `--color-surface-container` | `#1f1f27` | Cards, zones |
+| `--color-surface-container-high` | `#292932` | Raised controls |
+| `--color-surface-container-highest` | `#34343d` | Selected states, no-trade band |
+| `--color-surface-bright` | `#393841` | Row hover |
+| `--color-primary` | `#c0c1ff` | Brand, links, focus ring, BUY orders |
+| `--color-on-primary` | `#1000a9` | Text on a filled primary surface |
+| `--color-tertiary` | `#ffb783` | REBALANCE verdict, SELL orders, caveats |
+| `--color-success` | `#6ddf9c` | HOLD verdict, positive confirmations |
+| `--color-error` | `#ffb4ab` | Errors, blocking states, destructive actions |
+| `--color-on-surface` | `#e4e1ed` | Headings, values |
+| `--color-on-surface-variant` | `#c7c4d7` | Body, labels |
+| `--color-outline` | `#908fa0` | Captions and hints (minimum permitted) |
+| `--color-outline-variant` | `#464554` | Card and divider borders |
 
-- **DS-02 (MUST)** `zinc-600` and `zinc-700` MUST NOT be used for text on the
-  base surface — they fail WCAG AA contrast. Current uses in `InteractClient`
-  ("Upload your filled template to continue") and `TrainClient` (the privacy
-  footnote) are defects.
-- **DS-03 (MUST)** Semantic colour meanings are fixed: emerald = hold/positive,
-  orange = rebalance/sell, yellow = caveat, red = error. No screen may reuse them
-  otherwise.
-- **DS-04 (MUST)** Radius scale: `lg` (8px) controls, `xl` (12px) cards, `2xl`
-  (16px) modals and hero panels. Spacing on a 4px grid.
-- **DS-05 (MUST)** Type scale: `text-xs` labels/captions, `text-sm` body,
-  `text-base` emphasised body, `text-xl/2xl` section and page titles, `text-3xl+`
-  hero and verdict only.
+`--color-success` is not part of the generated Stitch config: no generated
+screen shows the HOLD verdict, and the scheme contains no green. It is tuned to
+the same tonal band as the palette it joins (relative luminance 0.584, against
+primary 0.566 and tertiary 0.568) and measures 11.2:1 on the base surface.
+
+- **DS-02 (MUST)** Text on any surface MUST meet `AX-04`. `--color-outline`
+  (5.2:1 on `--color-surface-container`) is the darkest permitted text colour;
+  `--color-outline-variant` is for borders only and MUST NOT carry text.
+- **DS-03 (MUST)** Semantic colour meanings are fixed: `success` = hold/positive
+  and BUY, `tertiary` = rebalance/sell and caveats, `error` = errors and blocking
+  states. No screen may reuse them otherwise.
+- **DS-04 (MUST)** Radius scale: `lg` (8px) controls, `xl` (12px) inner panels,
+  `2xl` (16px) cards, modals and hero panels. Spacing on the named 4px grid
+  (`xs` 4, `sm` 8, `md` 16, `lg` 24, `xl` 32, `2xl` 48). Note that these spacing
+  names shadow Tailwind's container scale, so `max-w-md` resolves to 16px —
+  width utilities MUST use an explicit value.
+- **DS-05 (MUST)** Type scale, by token: `label-xs` (12/16/500) labels and
+  captions, `body-sm` (14/20) body, `body-base` (16/24) emphasised body,
+  `title-lg` (20/28/600) and `title-xl` (24/32/600) section and page titles,
+  `verdict-lg` (36/44/700) and `verdict-xl` (48/56/700) hero and verdict only.
 
 ### 10.2 Component inventory
 
@@ -810,6 +824,21 @@ Explicitly not required by this specification:
 Findings from reading `app/`, `components/` and `lib/` on branch
 `rebuild-codex`. Severity: **C** = blocks release, **H** = materially misleading
 or inaccessible, **M** = quality.
+
+> **Status, 2026-08-08.** This register predates the Stitch design
+> implementation. Gaps 1–15, 17–20, 22 and 23 are closed by that work. Two
+> remain open:
+>
+> - **16 (partial)** — CSV export and a print stylesheet now exist; there is no
+>   PDF report. Open question §23.5 still applies.
+> - **21 (partial)** — `GL-14` is implemented (a 401/403 clears the token and the
+>   UI degrades), but the JWT still lives in `localStorage`. `SC-01` stands as an
+>   accepted risk pending open question §23.3.
+>
+> Also still open: **`GL-17`** — mandate inputs do not survive a route change, so
+> a sign-in detour mid-analysis loses them. The uploaded `File` cannot be
+> persisted across navigation and `SC-02` restricts what may be written to
+> storage, so this needs a decision rather than a patch.
 
 | # | Gap | Location | Req | Sev |
 |---|---|---|---|---|
