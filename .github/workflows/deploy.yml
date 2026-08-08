@@ -1,0 +1,75 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+# Deploy only needs to read the repo and reach EC2 over SSH — it never
+# writes back to GitHub.
+permissions:
+  contents: read
+
+# Only one production deploy at a time. A second push queues behind the
+# first rather than cancelling it mid-flight, since cancelling a deploy
+# partway through is more dangerous than waiting a few minutes.
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+env:
+  # Compiled into the client bundle at build time (NEXT_PUBLIC_API_URL) — not
+  # a secret, it is visible in every page the browser loads regardless.
+  PUBLIC_API_URL: https://portfolyo-iq.duckdns.org
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
+      - name: Build release artifact
+        id: build
+        env:
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: bash scripts/deploy/build-artifact.sh
+
+      - name: Configure SSH (key-based auth, pinned host key)
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Pinned via `ssh-keyscan`, not StrictHostKeyChecking=no — see
+          # docs/DEPLOYMENT.md for how EC2_SSH_HOST_KEY was generated. This
+          # protects against ever connecting to the wrong server.
+          printf '%s\n' "${{ secrets.EC2_SSH_HOST_KEY }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload release artifact and deploy script
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/deploy_key -P "${{ secrets.EC2_PORT }}" \
+            "${{ steps.build.outputs.artifact_path }}" \
+            "${{ steps.build.outputs.artifact_path }}.sha256" \
+            scripts/deploy/remote-deploy.sh \
+            "${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:/opt/portfolioiq/incoming/"
+
+      - name: Run remote deploy (extract, migrate, activate, health-check)
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/deploy_key -p "${{ secrets.EC2_PORT }}" \
+            "${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}" \
+            "bash /opt/portfolioiq/incoming/remote-deploy.sh '${{ steps.build.outputs.release_id }}'"
+
+      - name: Verify the public endpoint
+        # remote-deploy.sh already health-checked over loopback before
+        # reporting success; this additionally confirms Caddy is routing the
+        # public domain to the newly activated release.
+        run: |
+          curl -fsS --retry 5 --retry-delay 3 "${{ env.PUBLIC_API_URL }}/health" >/dev/null

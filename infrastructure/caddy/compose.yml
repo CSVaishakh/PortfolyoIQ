@@ -1,0 +1,26 @@
+# Infrastructure component: Caddy (TLS-terminating reverse proxy).
+#
+# This is deployed and restarted ONLY by the infrastructure deploy path
+# (scripts/deploy/bootstrap-ec2.sh or a deliberate infra update), never by an
+# application release. caddy_data holds ACME account/certificate state and
+# must survive every application deploy and every restart.
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: portfolioiq-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  caddy_data:
+    name: portfolioiq_caddy_data
+  caddy_config:
+    name: portfolioiq_caddy_config

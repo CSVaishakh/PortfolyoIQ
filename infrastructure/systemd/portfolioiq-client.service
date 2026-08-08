@@ -1,0 +1,25 @@
+[Unit]
+Description=PortfolioIQ react-client (Next.js)
+Documentation=https://github.com/CSVaishakh/PortfolyoIQ
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=portfolioiq
+Group=portfolioiq
+WorkingDirectory=/opt/portfolioiq/current/apps/react-client
+# NEXT_PUBLIC_API_URL is compiled into the client bundle at build time (CI),
+# not read at runtime, so no secrets file is needed here. -H binds loopback
+# only; Caddy is the only intended entry point.
+Environment=PORT=3000
+ExecStart=/usr/local/bin/bun run start -- -H 127.0.0.1
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/portfolioiq
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

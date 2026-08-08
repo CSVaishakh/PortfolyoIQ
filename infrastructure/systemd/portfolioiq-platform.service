@@ -1,0 +1,30 @@
+[Unit]
+Description=PortfolioIQ platform-service (Express API)
+Documentation=https://github.com/CSVaishakh/PortfolyoIQ
+After=network-online.target docker.service
+Wants=network-online.target
+# Postgres runs in the "docker" Compose stack under infrastructure/postgres.
+# This only requires the Docker daemon itself to be up, not any specific
+# container, since Postgres is infra-managed and restarted independently.
+Requires=docker.service
+
+[Service]
+Type=simple
+User=portfolioiq
+Group=portfolioiq
+WorkingDirectory=/opt/portfolioiq/current/apps/platform-service
+# env.ts loads .env.local/.env from the working directory (dotenv does not
+# override already-set vars), and remote-deploy.sh materializes that file
+# from /opt/portfolioiq/shared/platform-service.env on every release.
+# dist/index.js imports the uncompiled "database" workspace package, so this
+# must run under bun, not node.
+ExecStart=/usr/local/bin/bun dist/index.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/portfolioiq
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

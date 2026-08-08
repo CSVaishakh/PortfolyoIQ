@@ -1,0 +1,39 @@
+# PortfolioIQ reverse proxy.
+#
+# Application services are native EC2 processes, not containers, so this
+# container reaches them through the Docker host gateway rather than
+# "localhost" (which would resolve to this container itself).
+#
+# Route split is deliberate: the React client owns a UI page at exactly
+# "/auth" (app/auth/), while the platform API separately owns "/auth/signup"
+# and "/auth/signin". A blanket "/auth*" prefix would swallow the UI page, so
+# the platform API is matched by its exact known paths instead of a prefix.
+{
+	# admin@example.com
+}
+
+portfolyo-iq.duckdns.org {
+	encode zstd gzip
+
+	@platformApi {
+		path /auth/signup /auth/signin
+		path /client/*
+		path /model/*
+		path /health
+	}
+
+	handle @platformApi {
+		reverse_proxy host.docker.internal:5000
+	}
+
+	handle {
+		reverse_proxy host.docker.internal:3000
+	}
+
+	log {
+		output file /data/access.log {
+			roll_size 10mb
+			roll_keep 5
+		}
+	}
+}

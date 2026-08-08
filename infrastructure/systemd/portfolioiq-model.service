@@ -1,0 +1,27 @@
+[Unit]
+Description=PortfolioIQ model-service (FastAPI / Uvicorn)
+Documentation=https://github.com/CSVaishakh/PortfolyoIQ
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=portfolioiq
+Group=portfolioiq
+WorkingDirectory=/opt/portfolioiq/current/apps/model-service
+# The "start" script (package.json) activates .venv (created by
+# remote-deploy.sh via `uv venv`) and reads PORT/HOST from .env.local, which
+# is materialized from /opt/portfolioiq/shared/model-service.env on every
+# release. It also reads ../../packages/model-contract/feature-spec.json by a
+# path relative to app/main.py, so the release layout must keep that
+# directory at the same depth.
+ExecStart=/usr/local/bin/bun run start
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/portfolioiq
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

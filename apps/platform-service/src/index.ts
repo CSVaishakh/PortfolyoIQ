@@ -22,6 +22,10 @@ app.get("/health", async (_req, res) => {
 });
 
 const PORT = process.env["PORT"] ?? 3000;
-app.listen(PORT, () => {
-  console.log(`platform-service running on port ${PORT}`);
+// Bind loopback-only by default: Caddy (or a local dev client) is the only
+// intended caller, and the service should never be reachable directly from
+// outside the host. Override with HOST if a deployment ever needs otherwise.
+const HOST = process.env["HOST"] ?? "127.0.0.1";
+app.listen(Number(PORT), HOST, () => {
+  console.log(`platform-service running on ${HOST}:${PORT}`);
 });
