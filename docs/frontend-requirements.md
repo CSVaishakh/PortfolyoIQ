@@ -64,7 +64,7 @@ deployment. See §20 for explicit non-goals.
 | **Active weight** | `current weight − target weight` for a holding. |
 | **No-trade band** | `min(absoluteBand, relativeBand × target)` — the tolerance before a holding is considered off-target. |
 | **bps** | Basis points; 1 bp = 0.01%. |
-| **Blocking state** | A condition under which the client MUST NOT display a live recommendation (stale market data, missing mandate, unparseable file). |
+| **Blocking state** | A condition under which the client MUST NOT display a live recommendation (unusable market data, missing mandate, unparseable file). |
 
 ---
 
@@ -86,10 +86,12 @@ These are not background colour; each one generates hard UI requirements.
 4. **Raw holdings never leave the browser.** Parsing, feature construction and
    the economics engine all run client-side. → The privacy claim is true and MAY
    be stated, but only in the precise form given in `CN-05`.
-5. **Market data are bundled and can go stale.** `assessMarketDataFreshness()`
-   fails closed after `MAX_MARKET_DATA_AGE_DAYS = 5`. The bundled
-   `nifty50-15y.csv` currently ends 2026-07-31. → The UI must have a first-class
-   "unavailable" state, not just a log line.
+5. **Market data are bundled and can go stale.** The bundled `nifty50-15y.csv`
+   is a fixed snapshot ending 2026-07-31 and is not refreshed on a schedule, so
+   `assessMarketDataFreshness()` treats age past `MAX_MARKET_DATA_AGE_DAYS = 5`
+   as `stale` rather than unusable; only an unreadable or under-90-row series
+   fails closed. → The verdict must disclose the data age as a caveat, and the
+   UI must still have a first-class "unavailable" state for the closed cases.
 6. **The template is a fixed column contract.** `lib/portfolioParser.ts`
    requires exact headers (case-insensitive). It does not auto-map arbitrary
    broker exports. → Intake copy must not promise broker-format detection.
@@ -342,7 +344,7 @@ This is the product. It has four zones: **Intake**, **Mandate**, **Run**,
   | Missing header columns | `validateHeaders` | the exact missing column names |
   | Any holding without `Target Weight %` | `resolveTargetWeights` → `source: "missing"` | that a complete mandate is required, and why |
   | Targets sum ≤ 0 | `resolveTargetWeights` → `source: "invalid"` | that targets must total a positive number |
-  | Market data stale (> 5 days) | `assessMarketDataFreshness` | latest data date, age in days, the limit |
+  | Market data unreadable or empty | `assessMarketDataFreshness` | that no prices could be read from the bundled source |
   | Fewer than 90 trading days | `assessMarketDataFreshness` | the row count and the 90-row requirement |
   | Insufficient history for features | `getLatestMarketFeatures` returns null | that risk features cannot be computed |
 
@@ -794,7 +796,8 @@ Fixtures already exist and are hand-checked; the UI tests MUST use them.
 | `portfolio_dual_decision.csv` | per fixture README | Parses despite tab delimiters; decision follows net benefit; either verdict renders correctly |
 | Template with a blank `Target Weight %` | any | **Blocked**: missing-mandate panel; no verdict |
 | Template missing `Current Price` header | any | **Blocked**: named missing column; no verdict |
-| Any valid file, market CSV stubbed to 2026-01-01 | any | **Blocked**: stale-data panel quoting date, age and the 5-day limit |
+| Any valid file, market CSV stubbed to 2026-01-01 | any | Verdict renders; trace warns on the data age and the caveats quote the price date and age |
+| Any valid file, market CSV truncated below 90 rows | any | **Blocked**: unavailable panel quoting the row count and the 90-row minimum |
 | Any valid file, horizon field cleared | — | `Run` disabled with an inline reason; no exception surfaces |
 
 ### 19.3 Unit/component coverage required
@@ -878,7 +881,7 @@ or inaccessible, **M** = quality.
 | P1.4 — explicit unavailable/stale state | AN-20, AN-21, AN-43 |
 | P1 acceptance — "UI shows benefit, cost, tax, uncertainty and reason" | AN-24, AN-28, AN-29, AN-30 |
 | P1 acceptance — "every trade list reconciles to cash and target weights" | AN-30, AN-39 |
-| P1 acceptance — "stale prices block a live recommendation" | AN-20, AN-21 |
+| P1 acceptance — "unusable prices block a live recommendation; stale prices are disclosed" | AN-20, AN-21, AN-29 |
 | P2 acceptance — "confidence is model confidence, not investment certainty" | AN-25, AN-26, AN-27 |
 | P3.2 — rollback and audit visibility for operators | AD-04, AD-08 |
 | Design rule — "present as educational decision support" | CN-01, CN-02, LP-01, LP-07 |
@@ -894,9 +897,11 @@ or inaccessible, **M** = quality.
    change.
 3. **Cookie migration** — is moving the JWT to an `httpOnly` cookie in scope for
    this cycle, or does `SC-01` stand as an accepted risk?
-4. **Market data governance** — will the bundled CSV be replaced by a governed
-   feed? If it remains bundled, the stale state will become the *normal* state
-   over time and deserves a more prominent, permanent treatment than `AN-20`.
+4. **Market data governance** — *resolved for this cycle*: the CSV stays a
+   bundled snapshot with no refresh schedule, so age past the five-day target is
+   the normal state. It is therefore disclosed as a verdict caveat and a trace
+   warning rather than blocking the run under `AN-20`. Revisit if a governed
+   feed lands, at which point age should fail closed again.
 5. **Export format** — CSV only, or a PDF/print report for P3? Affects `AN-37`.
 6. **Result history** — is a per-user record of past analyses wanted? It is
    currently out of scope (§20.2) and would change the privacy claim in `CN-05`.

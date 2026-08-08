@@ -13,7 +13,7 @@ of real-market performance or portfolio suitability.
 
 1. **Upload** holdings with a target weight for every holding and optional purchase dates.
 2. **Provide** available cash, investment horizon, risk preference, and account type.
-3. **Validate** the bundled NIFTY 50 market-data freshness and provenance; stale or missing data blocks a live recommendation.
+3. **Validate** the bundled NIFTY 50 market-data provenance and age; missing or too-short data blocks a live recommendation, and prices past the five-day freshness target are disclosed as a caveat on the verdict.
 4. **Estimate** target-relative drift, costs, tax, no-trade bands, and an executable whole-share trade list.
 5. **Show** a hold/rebalance decision, uncertainty caveats, and a cash reconciliation.
 

@@ -280,7 +280,7 @@ test("every decision states its estimate caveats", () => {
   assert.ok(decision.reasons.length > 0, "a decision must always carry a reason");
 });
 
-// ── Market-data freshness (plan: stale data must fail closed) ────────────────
+// ── Market-data freshness (age is disclosed; only unusable data fails closed) ─
 
 function seriesEndingDaysAgo(daysAgo: number, count = 120): MarketRow[] {
   const end = Date.now() - daysAgo * DAY_MS;
@@ -290,29 +290,38 @@ function seriesEndingDaysAgo(daysAgo: number, count = 120): MarketRow[] {
   }));
 }
 
-test("a current series is usable and reports its provenance", () => {
+test("a current series is usable, not stale, and reports its provenance", () => {
   const freshness = assessMarketDataFreshness(seriesEndingDaysAgo(1));
   assert.equal(freshness.usable, true);
+  assert.equal(freshness.stale, false);
   assert.equal(freshness.ageDays, 1);
   assert.ok(/source:/i.test(freshness.reason));
 });
 
-test("the freshness limit is inclusive at the boundary and closed one day past it", () => {
-  assert.equal(assessMarketDataFreshness(seriesEndingDaysAgo(MAX_MARKET_DATA_AGE_DAYS)).usable, true);
+test("the freshness limit is inclusive at the boundary and marks stale one day past it", () => {
+  const atLimit = assessMarketDataFreshness(seriesEndingDaysAgo(MAX_MARKET_DATA_AGE_DAYS));
+  assert.equal(atLimit.usable, true);
+  assert.equal(atLimit.stale, false);
+
   const stale = assessMarketDataFreshness(seriesEndingDaysAgo(MAX_MARKET_DATA_AGE_DAYS + 1));
-  assert.equal(stale.usable, false);
-  assert.ok(/stale/i.test(stale.reason));
+  assert.equal(stale.stale, true);
+  // Age alone must not block: the bundled CSV is a snapshot, not a live feed.
+  assert.equal(stale.usable, true);
+  assert.ok(/days old/i.test(stale.reason));
 });
 
-test("the bundled dataset's own end date is checked, not assumed current", () => {
-  // The dataset that shipped with the previous pipeline ended 27 Feb 2026; a
-  // decision taken well after that must be blocked rather than silently served.
+test("the bundled dataset's own end date is measured, not assumed current", () => {
+  // The dataset that shipped with the previous pipeline ended 27 Feb 2026; its
+  // age must be reported against the run date rather than treated as today's.
   const bundled = parseNiftyCSV(
     ["Date,Open,High,Low,Close,Adj Close,Volume",
       ...Array.from({ length: 120 }, (_, i) => `27-FEB-2026,1,1,1,${100 + i},${100 + i},0`)].join("\n"),
   );
   const laterThatYear = new Date("2026-08-04T00:00:00Z");
-  assert.equal(assessMarketDataFreshness(bundled, laterThatYear).usable, false);
+  const freshness = assessMarketDataFreshness(bundled, laterThatYear);
+  assert.equal(freshness.stale, true);
+  assert.equal(freshness.usable, true);
+  assert.ok(freshness.ageDays > MAX_MARKET_DATA_AGE_DAYS);
 });
 
 test("an empty or unreadable series fails closed", () => {

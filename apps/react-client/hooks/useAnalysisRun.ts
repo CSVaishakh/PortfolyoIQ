@@ -287,22 +287,16 @@ export function useAnalysisRun(currentSignature: string, hasFile: boolean): UseA
         // Composed here rather than reusing `freshness.reason`: that string
         // formats its date through the runtime's default locale, which renders
         // as US-style and contradicts DV-11 elsewhere on the same panel.
-        const cause = tooShort
-          ? `The bundled series carries ${freshness.rowCount} trading days; at least ${MIN_MARKET_HISTORY_ROWS} are needed.`
-          : freshness.latestDate
-            ? `Market data are stale — the latest price is from ${formatDate(freshness.latestDate)}, ${freshness.ageDays} days old, against a limit of ${MAX_MARKET_DATA_AGE_DAYS} days.`
-            : "No market data could be read from the bundled source.";
         block({
           title: "Live recommendation unavailable",
-          cause,
+          cause: tooShort
+            ? `The bundled series carries ${freshness.rowCount} trading days; at least ${MIN_MARKET_HISTORY_ROWS} are needed.`
+            : "No market data could be read from the bundled source.",
           consequence:
-            "The economics depend on current market volatility, so no verdict is produced from prices this old.",
-          action: tooShort
-            ? `Refresh the bundled ${MARKET_DATASET.filename} so it carries at least ${MIN_MARKET_HISTORY_ROWS} trading days.`
-            : `Refresh the bundled ${MARKET_DATASET.filename}; the freshness limit is ${MAX_MARKET_DATA_AGE_DAYS} days.`,
+            "The economics need the 90-day risk features, which this series cannot supply, so no verdict is produced.",
+          action: `Refresh the bundled ${MARKET_DATASET.filename} so it carries at least ${MIN_MARKET_HISTORY_ROWS} trading days.`,
           details: [
             `Latest data: ${formatDate(freshness.latestDate)}`,
-            `Age: ${freshness.ageDays} days (limit ${MAX_MARKET_DATA_AGE_DAYS})`,
             `Trading days available: ${freshness.rowCount} (minimum ${MIN_MARKET_HISTORY_ROWS})`,
           ],
         });
@@ -312,6 +306,14 @@ export function useAnalysisRun(currentSignature: string, hasFile: boolean): UseA
         `Market data loaded — ${freshness.rowCount} trading days to ${formatDate(freshness.latestDate)}.`,
         "ok",
       );
+      if (freshness.stale) {
+        // Age does not block: the CSV is a fixed snapshot, not a live feed. The
+        // run continues and the verdict carries the age as a caveat instead.
+        push(
+          `Market data are ${freshness.ageDays} days old, past the ${MAX_MARKET_DATA_AGE_DAYS}-day freshness target — the verdict is computed from that snapshot.`,
+          "warn",
+        );
+      }
 
       // ── 4. Portfolio features ─────────────────────────────────────────────
       push("Computing portfolio features…");
@@ -362,6 +364,12 @@ export function useAnalysisRun(currentSignature: string, hasFile: boolean): UseA
           accountType: mandate.accountType,
         },
       );
+      if (freshness.stale && freshness.latestDate) {
+        // AN-29: the verdict must disclose that it rests on an old snapshot.
+        decision.caveats.push(
+          `Prices are from ${formatDate(freshness.latestDate)}, ${freshness.ageDays} days old; current volatility and holdings values may differ.`,
+        );
+      }
       push(
         `Decision: ${decision.action} — estimated net benefit ${decision.netBenefitBps.toFixed(1)} bps over the review horizon.`,
         decision.action === "REBALANCE" ? "ok" : "info",

@@ -20,7 +20,9 @@ export const MARKET_DATASET = {
 
 /**
  * Freshness service-level objective. Five days covers a normal weekend plus a
- * market holiday; anything older is treated as unusable for a live decision.
+ * market holiday. Exceeding it does not block the run — the bundled CSV is a
+ * fixed snapshot that is not refreshed on a schedule — but it does mark the
+ * assessment `stale` so the decision carries an explicit age caveat.
  */
 export const MAX_MARKET_DATA_AGE_DAYS = 5;
 
@@ -29,6 +31,8 @@ export const MIN_MARKET_HISTORY_ROWS = 90;
 
 export interface MarketDataFreshness {
   usable: boolean;
+  /** Older than the SLO. Usable, but the decision must disclose the age. */
+  stale: boolean;
   latestDate: Date | null;
   ageDays: number;
   rowCount: number;
@@ -36,11 +40,13 @@ export interface MarketDataFreshness {
 }
 
 /**
- * Fail-closed freshness check.
+ * Market-series usability check.
  *
- * A stale or short market series must block a live recommendation rather than
- * quietly producing one from old prices, so this returns an explicit unusable
- * state with the reason to surface to the user.
+ * A missing or too-short series must block a live recommendation rather than
+ * quietly producing one from data that cannot carry the 90-day risk features,
+ * so this returns an explicit unusable state with the reason to surface to the
+ * user. Age alone does not block: the series is a bundled snapshot, so old
+ * prices are reported as `stale` and disclosed alongside the verdict instead.
  */
 export function assessMarketDataFreshness(
   rows: MarketRow[],
@@ -51,6 +57,7 @@ export function assessMarketDataFreshness(
   if (!latestDate) {
     return {
       usable: false,
+      stale: false,
       latestDate: null,
       ageDays: Infinity,
       rowCount: rows.length,
@@ -59,10 +66,12 @@ export function assessMarketDataFreshness(
   }
 
   const ageDays = Math.floor((now.getTime() - latestDate.getTime()) / 86_400_000);
+  const stale = ageDays > maxAgeDays;
 
   if (rows.length < MIN_MARKET_HISTORY_ROWS) {
     return {
       usable: false,
+      stale,
       latestDate,
       ageDays,
       rowCount: rows.length,
@@ -72,20 +81,23 @@ export function assessMarketDataFreshness(
     };
   }
 
-  if (ageDays > maxAgeDays) {
+  if (stale) {
     return {
-      usable: false,
+      usable: true,
+      stale,
       latestDate,
       ageDays,
       rowCount: rows.length,
       reason:
-        `Market data are stale (latest ${latestDate.toLocaleDateString()}, ${ageDays} days old; `
-        + `the limit is ${maxAgeDays} days). A live recommendation is unavailable.`,
+        `Market data are ${ageDays} days old (latest ${latestDate.toLocaleDateString()}, past the `
+        + `${maxAgeDays}-day freshness target); the decision is computed from that snapshot. `
+        + `Source: ${MARKET_DATASET.provenance}.`,
     };
   }
 
   return {
     usable: true,
+    stale,
     latestDate,
     ageDays,
     rowCount: rows.length,
