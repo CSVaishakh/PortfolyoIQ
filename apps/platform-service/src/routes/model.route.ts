@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import {
   getAllLatestUserWeights,
   getGlobalModelBySerial,
+  getGlobalModelHistory,
   getLatestGlobalModel,
   saveGlobalWeights,
 } from "../queries/client.queries.js";
@@ -38,6 +39,7 @@ export interface ModelRouterDeps {
   getAllLatestUserWeights: typeof getAllLatestUserWeights;
   getLatestGlobalModel: typeof getLatestGlobalModel;
   getGlobalModelBySerial: typeof getGlobalModelBySerial;
+  getGlobalModelHistory: typeof getGlobalModelHistory;
   saveGlobalWeights: typeof saveGlobalWeights;
   modelService: ModelServiceClient;
 }
@@ -159,6 +161,65 @@ export function createModelRouter(deps: ModelRouterDeps, config: ModelRouterConf
     }
     onSuccess(result);
   }
+
+  // ── GET /model/status ───────────────────────────────────────────────────────
+  // Admin-only, read-only. Reports the active global model and the operational
+  // flags, so the admin UI can disable an action with a stated reason instead of
+  // letting it fail at request time (AD-05).
+  //
+  // It is also the secret-verification call: authenticating an operator must be
+  // side-effect free, and the previous UI validated the secret by POSTing to
+  // /model/train — which ran a real FedAvg round (AD-01).
+  modelRouter.get("/status", async (req: Request, res: Response) => {
+    if (!requireAdminSecret(req, res)) return;
+
+    const active = await deps.getLatestGlobalModel();
+    res.json({
+      activeModel: active
+        ? {
+            serialno: active.serialno,
+            timestamp: active.timestamp,
+            participants: active.participants,
+            n_samples_total: active.n_samples_total,
+            feature_version: active.feature_version,
+            scaler_version: active.scaler_version,
+            model_version: active.model_version,
+          }
+        : null,
+      flags: {
+        federatedAggregationEnabled: config.federatedAggregationEnabled,
+        demoModelEnabled: config.demoModelEnabled,
+      },
+    });
+  });
+
+  // ── GET /model/history ──────────────────────────────────────────────────────
+  // Admin-only, read-only. Paginated global-model snapshots, newest first, so
+  // the operator can see the audit trail and roll back a specific serial —
+  // POST /model/rollback/:serialno already exists but had no way to discover
+  // what it could restore (AD-08).
+  // Query params: page (default 1), limit (default 10, max 50)
+  modelRouter.get("/history", async (req: Request, res: Response) => {
+    if (!requireAdminSecret(req, res)) return;
+
+    const page = Math.max(1, parseInt(req.query["page"] as string) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query["limit"] as string) || 10));
+    const rows = await deps.getGlobalModelHistory(limit, (page - 1) * limit);
+
+    res.json({
+      page,
+      limit,
+      results: rows.map((row) => ({
+        serialno: row.serialno,
+        timestamp: row.timestamp,
+        participants: row.participants,
+        n_samples_total: row.n_samples_total,
+        feature_version: row.feature_version,
+        scaler_version: row.scaler_version,
+        model_version: row.model_version,
+      })),
+    });
+  });
 
   // ── POST /model/aggregate ───────────────────────────────────────────────────
   // Admin-only. Runs one sample-weighted FedAvg round.
@@ -295,6 +356,7 @@ const modelRouter = createModelRouter(
     getAllLatestUserWeights,
     getLatestGlobalModel,
     getGlobalModelBySerial,
+    getGlobalModelHistory,
     saveGlobalWeights,
     modelService: createHttpModelServiceClient(),
   },
