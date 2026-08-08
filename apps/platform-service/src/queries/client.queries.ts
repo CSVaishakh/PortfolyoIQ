@@ -103,6 +103,20 @@ export async function saveGlobalWeights(
   return row!;
 }
 
+/**
+ * Paginated global-model snapshots, newest first — the audit trail behind the
+ * operator's model history table and its per-row rollback action (AD-08).
+ * Mirrors the pagination of `getUserModelHistory`.
+ */
+export async function getGlobalModelHistory(limit: number, offset: number) {
+  return db
+    .select()
+    .from(globalModelHistory)
+    .orderBy(desc(globalModelHistory.timestamp))
+    .limit(limit)
+    .offset(offset);
+}
+
 export async function getUserModelHistory(
   userId: number,
   limit: number,

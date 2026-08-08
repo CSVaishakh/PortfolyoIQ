@@ -12,9 +12,18 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/**
+ * CN-02: the output is an estimate, not a prediction, and no page may sell it
+ * as "AI-powered" — the verdict is deterministic arithmetic. The previous title
+ * and description claimed both AI and federated learning as user benefits.
+ */
 export const metadata: Metadata = {
-  title: "PortfolioIQ — AI-Powered Portfolio Rebalancing",
-  description: "Rebalance your investment portfolio with privacy-preserving federated AI. Upload your holdings, get instant sector analysis and rebalancing recommendations.",
+  title: {
+    default: "PortfolioIQ — deterministic portfolio rebalancing estimates",
+    template: "%s",
+  },
+  description:
+    "Weigh portfolio drift against trading cost and tax with a target-relative model. An educational prototype; its output is a deterministic estimate, not investment advice.",
 };
 
 export default function RootLayout({

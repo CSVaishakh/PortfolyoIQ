@@ -1,225 +1,234 @@
+import { ArrowRight, Lock, Scale, Receipt, BarChart3, XCircle } from "lucide-react";
+import { AppShell } from "@/components/layout/AppShell";
+import { ButtonLink } from "@/components/ui/Button";
+import { Alert } from "@/components/ui/Alert";
+import { IllustrativeOutput } from "@/components/landing/IllustrativeOutput";
+import { loadIllustration } from "@/lib/illustration";
+import { DISCLOSURE, PRIVACY_CLAIM } from "@/lib/copy";
+
+/**
+ * Landing page.
+ *
+ * A server component with no client JavaScript of its own beyond the shared
+ * header, so it renders and states its disclosure without scripting (NFR-03)
+ * and keeps TensorFlow.js out of its bundle entirely (PF-01).
+ *
+ * Every claim below corresponds to shipped behaviour (LP-02). The previous copy
+ * promised broker-format auto-mapping, on-device model training, a model that
+ * improves as more people use it, P&L views and saved weights — none of which
+ * exist.
+ */
+
+const PROPERTIES = [
+  {
+    Icon: Scale,
+    title: "Target-relative",
+    body: "Drift is measured against the allocation you declare, not against an equal-weight ideal. No declared mandate, no verdict.",
+  },
+  {
+    Icon: Receipt,
+    title: "Cost and tax estimation",
+    body: "Brokerage, short- and long-term capital gains and the turnover cap are weighed before any trade is proposed.",
+  },
+  {
+    Icon: BarChart3,
+    title: "Drift visualisation",
+    body: "Every holding is shown against its target and its no-trade band, ordered by how far off it has drifted.",
+  },
+];
+
+/** LP-03: the steps mirror the real pipeline. */
+const STEPS = [
+  {
+    number: "01",
+    title: "Declare your targets",
+    body: "Fill the fixed template with your holdings and the target weight you intend for each. That mandate is the baseline every later figure is measured against.",
+  },
+  {
+    number: "02",
+    title: "Analyse locally",
+    body: "Upload the file. Parsing, feature construction and the economics all run in your browser — your holdings are never transmitted.",
+  },
+  {
+    number: "03",
+    title: "Act with the numbers in view",
+    body: "Read the verdict, the trade list, the estimated cost and tax, and the caveats that qualify them. Export the trades as CSV.",
+  },
+];
+
+/** LP-07: the limits, stated as plainly as the capabilities. */
+const LIMITS = [
+  "No live or streaming quotes — every price is one you enter.",
+  "No broker connection and no order placement.",
+  "No return forecasting, factor exposure or security-level covariance; risk uses a market-volatility proxy.",
+  "No tax filing, and the rates used are policy constants in the engine, not live tax law.",
+  "No saved portfolios and no history — nothing is stored between sessions.",
+];
+
 export default function Home() {
+  const illustration = loadIllustration();
+
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-white">
-      {/* ── Navbar ──────────────────────────────────────────────────────── */}
-      <nav className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white font-bold text-sm">
-            P
-          </div>
-          <span className="font-semibold text-lg tracking-tight">PortfolioIQ</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <a
-            href="/auth"
-            className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors"
-          >
-            Sign In
-          </a>
-          <a
-            href="/auth"
-            className="px-4 py-2 text-sm font-medium bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors"
-          >
-            Get Started
-          </a>
-        </div>
-      </nav>
+    <AppShell width="full">
+      {/* ── Hero (LP-01) ──────────────────────────────────────────────────── */}
+      <section className="relative px-margin pt-2xl pb-xl overflow-hidden">
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-[520px] pointer-events-none"
+          style={{
+            background:
+              "radial-gradient(ellipse 60% 60% at 50% 0%, color-mix(in oklab, var(--color-primary) 12%, transparent), transparent 70%)",
+          }}
+        />
 
-      {/* ── Hero ────────────────────────────────────────────────────────── */}
-      <section className="max-w-7xl mx-auto px-6 pt-24 pb-20 text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 text-xs font-medium mb-8">
-          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-          Privacy-preserving · Federated Learning
-        </div>
-
-        <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight leading-tight max-w-4xl mx-auto">
-          Rebalance your portfolio
-          <span className="block text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-violet-400">
-            with AI you can trust
+        <div className="relative max-w-[900px] mx-auto text-center flex flex-col items-center">
+          <span className="inline-flex items-center gap-sm bg-surface-container/80 rounded-full px-md py-1.5 mb-xl border border-outline-variant/40">
+            <span aria-hidden="true" className="size-2 rounded-full bg-tertiary animate-pulse" />
+            <span className="text-label-xs uppercase tracking-widest text-on-surface-variant">
+              Experimental build
+            </span>
           </span>
-        </h1>
 
-        <p className="mt-6 text-lg text-zinc-400 max-w-2xl mx-auto leading-relaxed">
-          Upload your holdings from any broker. Our federated AI analyses your sector
-          allocation and delivers personalised rebalancing recommendations — without
-          your data ever leaving your device.
-        </p>
+          <h1 className="text-verdict-lg-mobile md:text-verdict-xl text-on-surface max-w-[800px] mb-lg">
+            Deterministic rebalancing estimates for the{" "}
+            <span className="text-primary italic">disciplined investor.</span>
+          </h1>
 
-        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-          <a
-            href="/auth"
-            className="w-full sm:w-auto px-8 py-3.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-semibold text-sm transition-colors"
-          >
-            Start for free →
-          </a>
-          <a
-            href="#how-it-works"
-            className="w-full sm:w-auto px-8 py-3.5 border border-zinc-700 hover:border-zinc-500 rounded-xl font-medium text-sm text-zinc-300 transition-colors"
-          >
-            See how it works
-          </a>
-        </div>
-
-        {/* Mock dashboard preview */}
-        <div className="mt-16 relative">
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0f] via-transparent to-transparent z-10 pointer-events-none" />
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-6 text-left max-w-3xl mx-auto">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-3 h-3 rounded-full bg-red-500/70" />
-              <div className="w-3 h-3 rounded-full bg-yellow-500/70" />
-              <div className="w-3 h-3 rounded-full bg-green-500/70" />
-              <span className="ml-2 text-xs text-zinc-500">portfolio.csv</span>
-            </div>
-            <div className="grid grid-cols-4 gap-4 mb-4">
-              {[
-                { label: "Total Holdings", value: "₹4,82,310", change: "+2.3%" },
-                { label: "Sectors", value: "6", change: "diversified" },
-                { label: "Best Performer", value: "TATASTEEL", change: "+12.4%" },
-                { label: "Rebalance Score", value: "74 / 100", change: "good" },
-              ].map((stat) => (
-                <div key={stat.label} className="bg-zinc-800/60 rounded-lg p-3">
-                  <p className="text-xs text-zinc-500">{stat.label}</p>
-                  <p className="text-sm font-semibold mt-1">{stat.value}</p>
-                  <p className="text-xs text-emerald-400 mt-0.5">{stat.change}</p>
-                </div>
-              ))}
-            </div>
-            <div className="space-y-2">
-              {[
-                { symbol: "SBIN", sector: "FINANCIAL SERVICES", weight: 28, color: "bg-blue-500" },
-                { symbol: "TATASTEEL", sector: "METALS", weight: 42, color: "bg-orange-500" },
-                { symbol: "INFY", sector: "IT", weight: 18, color: "bg-indigo-500" },
-                { symbol: "RELIANCE", sector: "ENERGY", weight: 12, color: "bg-yellow-500" },
-              ].map((row) => (
-                <div key={row.symbol} className="flex items-center gap-3">
-                  <span className="text-xs font-mono text-zinc-300 w-20">{row.symbol}</span>
-                  <div className="flex-1 h-2 bg-zinc-700 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${row.color} rounded-full`}
-                      style={{ width: `${row.weight}%` }}
-                    />
-                  </div>
-                  <span className="text-xs text-zinc-400 w-8 text-right">{row.weight}%</span>
-                  <span className="text-xs text-zinc-500 w-32 hidden sm:block">{row.sector}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Features ────────────────────────────────────────────────────── */}
-      <section className="max-w-7xl mx-auto px-6 py-20">
-        <h2 className="text-center text-3xl font-bold mb-3">Everything you need to rebalance smarter</h2>
-        <p className="text-center text-zinc-400 mb-12">
-          No spreadsheets. No guesswork. Just upload and act.
-        </p>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[
-            {
-              icon: "⬆",
-              title: "Universal file import",
-              body: "Upload exports from Zerodha, Groww, Angel One, ICICI Direct and more. CSV and Excel supported. Our parser auto-maps columns regardless of broker format.",
-            },
-            {
-              icon: "🔒",
-              title: "Federated privacy",
-              body: "Your portfolio never leaves your browser. The AI model trains locally on your device and only contributes anonymised weight updates to the global model.",
-            },
-            {
-              icon: "⚖",
-              title: "Sector rebalancing",
-              body: "Instantly see your allocation across IT, Financials, Metals, Energy and more. Get AI-driven suggestions to bring your portfolio to target weights.",
-            },
-            {
-              icon: "📈",
-              title: "P&L at a glance",
-              body: "Unrealised gains, sector exposure, and top/bottom performers — all derived from your uploaded data in seconds.",
-            },
-            {
-              icon: "🤖",
-              title: "Collaborative AI",
-              body: "The more users train the model, the smarter it gets for everyone — without any single user's data being shared. Federated averaging in action.",
-            },
-            {
-              icon: "🔄",
-              title: "One-click refresh",
-              body: "Re-upload your portfolio anytime to get updated recommendations. Your personal model weights are saved so retraining is fast.",
-            },
-          ].map((f) => (
-            <div
-              key={f.title}
-              className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 hover:border-zinc-700 transition-colors"
-            >
-              <div className="text-2xl mb-3">{f.icon}</div>
-              <h3 className="font-semibold mb-2">{f.title}</h3>
-              <p className="text-sm text-zinc-400 leading-relaxed">{f.body}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── How it works ────────────────────────────────────────────────── */}
-      <section id="how-it-works" className="max-w-7xl mx-auto px-6 py-20">
-        <h2 className="text-center text-3xl font-bold mb-3">How it works</h2>
-        <p className="text-center text-zinc-400 mb-12">Three steps from upload to action</p>
-        <div className="grid sm:grid-cols-3 gap-8 max-w-4xl mx-auto">
-          {[
-            {
-              step: "01",
-              title: "Upload your holdings",
-              body: "Export your portfolio from your broker and drop the CSV or Excel file. We handle any column format automatically.",
-            },
-            {
-              step: "02",
-              title: "AI trains locally",
-              body: "The logistic regression model fits to your holdings right in your browser. Nothing is sent to our servers — only model weights.",
-            },
-            {
-              step: "03",
-              title: "Get recommendations",
-              body: "See which sectors are overweight or underweight and receive specific buy/sell suggestions to rebalance your portfolio.",
-            },
-          ].map((s) => (
-            <div key={s.step} className="text-center">
-              <div className="w-12 h-12 rounded-full bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 font-bold text-sm mx-auto mb-4">
-                {s.step}
-              </div>
-              <h3 className="font-semibold mb-2">{s.title}</h3>
-              <p className="text-sm text-zinc-400 leading-relaxed">{s.body}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── CTA ─────────────────────────────────────────────────────────── */}
-      <section className="max-w-7xl mx-auto px-6 py-20">
-        <div className="rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-950/50 to-violet-950/40 p-12 text-center">
-          <h2 className="text-3xl font-bold mb-3">Ready to rebalance?</h2>
-          <p className="text-zinc-400 mb-8 max-w-md mx-auto">
-            Create a free account and upload your portfolio in under a minute.
+          <p className="text-body-base md:text-title-lg font-normal text-on-surface-variant max-w-[650px] mb-2xl">
+            Weigh drift against cost and tax with a target-relative model. Not a prediction, not a
+            forecast — an arithmetic estimate from the figures you provide.
           </p>
-          <a
-            href="/auth"
-            className="inline-block px-10 py-3.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-semibold text-sm transition-colors"
-          >
-            Get started free →
-          </a>
+
+          <div className="flex flex-col sm:flex-row items-center gap-md w-full sm:w-auto">
+            {/* LP-06: the product works without an account, so the primary CTA
+                goes to the product, not to the sign-in wall. */}
+            <ButtonLink href="/interact" size="lg" className="w-full sm:w-auto">
+              Start an analysis
+              <ArrowRight aria-hidden="true" className="size-5" />
+            </ButtonLink>
+            <ButtonLink href="/auth" size="lg" variant="secondary" className="w-full sm:w-auto">
+              Sign in
+            </ButtonLink>
+          </div>
+          <p className="text-label-xs font-normal text-outline mt-md">
+            No account needed. Signing in only adds an explanatory model signal.
+          </p>
         </div>
       </section>
 
-      {/* ── Footer ──────────────────────────────────────────────────────── */}
-      <footer className="border-t border-zinc-800 py-8 px-6">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-zinc-500">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded bg-indigo-500 flex items-center justify-center text-white font-bold text-xs">
-              P
-            </div>
-            <span>PortfolioIQ</span>
+      {/* ── Disclosure (LP-04) — above the fold, not only in the footer ───── */}
+      <section className="w-full px-margin relative z-10">
+        <Alert tone="error" className="max-w-[800px] mx-auto">
+          <strong className="text-on-surface font-semibold">Educational prototype: </strong>
+          {DISCLOSURE}
+        </Alert>
+      </section>
+
+      {illustration && <IllustrativeOutput illustration={illustration} />}
+
+      {/* ── What it does ──────────────────────────────────────────────────── */}
+      <section className="w-full px-margin py-2xl" aria-labelledby="protocol-heading">
+        <div className="max-w-[1280px] mx-auto grid lg:grid-cols-12 gap-xl">
+          <div className="lg:col-span-4">
+            <h2 id="protocol-heading" className="text-verdict-lg text-on-surface mb-md">
+              The method.
+            </h2>
+            <p className="text-body-base font-normal text-on-surface-variant">
+              A strict, deterministic approach to portfolio maintenance. No predictive model decides
+              anything — the verdict is arithmetic on your stated intent.
+            </p>
           </div>
-          <p>© {new Date().getFullYear()} PortfolioIQ. Built with federated learning.</p>
+
+          <ul className="lg:col-span-8 grid sm:grid-cols-3 gap-md">
+            {PROPERTIES.map(({ Icon, title, body }) => (
+              <li
+                key={title}
+                className="rounded-2xl bg-surface-container border border-outline-variant/40 p-lg flex flex-col gap-sm"
+              >
+                <Icon aria-hidden="true" className="size-6 text-primary" />
+                <h3 className="text-title-lg text-on-surface">{title}</h3>
+                <p className="text-body-sm text-on-surface-variant">{body}</p>
+              </li>
+            ))}
+          </ul>
         </div>
-      </footer>
-    </div>
+      </section>
+
+      {/* ── How it works (LP-03) ──────────────────────────────────────────── */}
+      <section className="w-full px-margin py-2xl" aria-labelledby="how-heading">
+        <div className="max-w-[1280px] mx-auto">
+          <h2 id="how-heading" className="text-verdict-lg text-on-surface mb-xl">
+            How it works.
+          </h2>
+
+          <ol className="flex flex-col gap-md">
+            {STEPS.map((step) => (
+              <li
+                key={step.number}
+                className="rounded-2xl bg-surface-container border border-outline-variant/40 p-lg flex flex-col sm:flex-row gap-md"
+              >
+                <span
+                  aria-hidden="true"
+                  className="size-11 shrink-0 rounded-full bg-primary/10 text-primary grid place-items-center font-mono text-body-sm"
+                >
+                  {step.number}
+                </span>
+                <div className="flex flex-col gap-xs min-w-0">
+                  <h3 className="text-title-lg text-on-surface">{step.title}</h3>
+                  <p className="text-body-sm text-on-surface-variant max-w-prose">{step.body}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+
+          <div className="mt-md rounded-2xl bg-surface-container-low border border-outline-variant/40 p-lg flex items-start gap-md">
+            <Lock aria-hidden="true" className="size-5 shrink-0 text-primary mt-0.5" />
+            <p className="text-body-sm text-on-surface-variant max-w-prose">{PRIVACY_CLAIM}</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Limits (LP-07) ────────────────────────────────────────────────── */}
+      <section className="w-full px-margin py-2xl" aria-labelledby="limits-heading">
+        <div className="max-w-[1280px] mx-auto grid lg:grid-cols-12 gap-xl">
+          <div className="lg:col-span-4">
+            <h2 id="limits-heading" className="text-verdict-lg text-on-surface mb-md">
+              What it does not do.
+            </h2>
+            <p className="text-body-base font-normal text-on-surface-variant">
+              Stated as plainly as the capabilities, because knowing the edges is what makes the
+              output usable.
+            </p>
+          </div>
+
+          <ul className="lg:col-span-8 flex flex-col gap-sm">
+            {LIMITS.map((limit) => (
+              <li
+                key={limit}
+                className="flex items-start gap-sm rounded-xl bg-surface-container-low border border-outline-variant/40 p-md"
+              >
+                <XCircle aria-hidden="true" className="size-5 shrink-0 text-outline mt-px" />
+                <span className="text-body-sm text-on-surface-variant">{limit}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      {/* ── Closing CTA ───────────────────────────────────────────────────── */}
+      <section className="w-full px-margin pb-2xl">
+        <div className="max-w-[800px] mx-auto rounded-2xl border border-primary/20 bg-primary/5 p-xl text-center flex flex-col items-center gap-md">
+          <h2 className="text-title-xl text-on-surface">Ready to check your allocation?</h2>
+          <p className="text-body-sm text-on-surface-variant max-w-prose">
+            Download the template, fill in your holdings and target weights, and run the engine. It
+            takes about a minute and needs no account.
+          </p>
+          <ButtonLink href="/interact" size="lg">
+            Start an analysis
+            <ArrowRight aria-hidden="true" className="size-5" />
+          </ButtonLink>
+        </div>
+      </section>
+    </AppShell>
   );
 }

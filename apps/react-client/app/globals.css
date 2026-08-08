@@ -1,26 +1,226 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * PortfolioIQ design tokens.
+ *
+ * The palette is the Material-3 dark scheme carried by every Stitch screen
+ * (docs/stitch_screens/*.html share one byte-identical Tailwind config). It is
+ * the single theme the product ships — see GL-10 in docs/frontend-requirements.md.
+ *
+ * Semantic assignments (DS-03), fixed across every screen:
+ *   primary   → brand, links, focus, BUY orders
+ *   tertiary  → REBALANCE verdict, SELL orders, caveats
+ *   success   → HOLD verdict, positive confirmations
+ *   error     → blocking states, destructive actions, validation failures
+ */
+@theme {
+  /* ── Surfaces ─────────────────────────────────────────────────────────── */
+  --color-background: #13131b;
+  --color-surface: #13131b;
+  --color-surface-dim: #13131b;
+  --color-surface-bright: #393841;
+  --color-surface-container-lowest: #0d0d15;
+  --color-surface-container-low: #1b1b23;
+  --color-surface-container: #1f1f27;
+  --color-surface-container-high: #292932;
+  --color-surface-container-highest: #34343d;
+  --color-surface-variant: #34343d;
+
+  /* ── Primary — brand, links, focus, BUY ───────────────────────────────── */
+  --color-primary: #c0c1ff;
+  --color-on-primary: #1000a9;
+  --color-primary-container: #8083ff;
+  --color-on-primary-container: #0d0096;
+  --color-inverse-primary: #494bd6;
+
+  /* ── Secondary ────────────────────────────────────────────────────────── */
+  --color-secondary: #d2bbff;
+  --color-on-secondary: #3f008e;
+  --color-secondary-container: #6001d1;
+  --color-on-secondary-container: #c9aeff;
+
+  /* ── Tertiary — REBALANCE, SELL, caveats ──────────────────────────────── */
+  --color-tertiary: #ffb783;
+  --color-on-tertiary: #4f2500;
+  --color-tertiary-container: #d97721;
+  --color-on-tertiary-container: #452000;
+
+  /*
+   * Success — HOLD, positive confirmations.
+   *
+   * Not part of the Stitch config: no generated screen shows the HOLD verdict,
+   * yet DS-03 fixes a positive colour and half the product's verdicts are HOLD.
+   * Tuned to sit in the same tonal band as the palette it joins — relative
+   * luminance 0.584 against primary 0.566 and tertiary 0.568 — so it reads as
+   * one family rather than a bolted-on green. 11.2:1 on the base surface.
+   */
+  --color-success: #6ddf9c;
+  --color-on-success: #00391c;
+
+  /* ── Error — blocking states, destructive actions ─────────────────────── */
+  --color-error: #ffb4ab;
+  --color-on-error: #690005;
+  --color-error-container: #93000a;
+  --color-on-error-container: #ffdad6;
+
+  /* ── Content and outlines ─────────────────────────────────────────────── */
+  --color-on-background: #e4e1ed;
+  --color-on-surface: #e4e1ed;
+  --color-on-surface-variant: #c7c4d7;
+  --color-outline: #908fa0;
+  --color-outline-variant: #464554;
+  --color-inverse-surface: #e4e1ed;
+  --color-inverse-on-surface: #303038;
+
+  /*
+   * Spacing — the named 4px grid the Stitch screens use throughout (DS-04).
+   *
+   * Caution: these names shadow Tailwind's container scale for width
+   * utilities, so `max-w-md` resolves to 16px here rather than 28rem. Use an
+   * explicit `max-w-[28rem]` when you want a container width.
+   */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+  --spacing-gutter: 16px;
+  --spacing-margin: 24px;
+
+  /*
+   * Type scale (DS-05).
+   *
+   * Taken from the Stitch config's `fontSize` block. The generated HTML applies
+   * these through `font-*` classes, which in Tailwind only set font-family — so
+   * six of the seven screenshots rendered flat at 16px. The token table is the
+   * unambiguous intent; the screenshots record a generator bug. See the note in
+   * the handover.
+   */
+  --text-label-xs: 12px;
+  --text-label-xs--line-height: 16px;
+  --text-label-xs--font-weight: 500;
+  --text-label-xs--letter-spacing: 0.02em;
+
+  --text-body-sm: 14px;
+  --text-body-sm--line-height: 20px;
+  --text-body-sm--font-weight: 400;
+
+  --text-body-base: 16px;
+  --text-body-base--line-height: 24px;
+  --text-body-base--font-weight: 400;
+
+  --text-title-lg: 20px;
+  --text-title-lg--line-height: 28px;
+  --text-title-lg--font-weight: 600;
+
+  --text-title-xl: 24px;
+  --text-title-xl--line-height: 32px;
+  --text-title-xl--font-weight: 600;
+
+  --text-verdict-lg-mobile: 30px;
+  --text-verdict-lg-mobile--line-height: 38px;
+  --text-verdict-lg-mobile--font-weight: 700;
+
+  --text-verdict-lg: 36px;
+  --text-verdict-lg--line-height: 44px;
+  --text-verdict-lg--font-weight: 700;
+  --text-verdict-lg--letter-spacing: -0.02em;
+
+  --text-verdict-xl: 48px;
+  --text-verdict-xl--line-height: 56px;
+  --text-verdict-xl--font-weight: 700;
+  --text-verdict-xl--letter-spacing: -0.02em;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/*
+ * Single dark theme (GL-10). `color-scheme` keeps native controls — date
+ * pickers, select menus, scrollbars, autofill — in the dark palette instead of
+ * punching white boxes through the surface.
+ */
+:root {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--color-on-background);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* The page itself never scrolls sideways; wide content scrolls in its own box (RS-03). */
+html,
+body {
+  overflow-x: clip;
+}
+
+/*
+ * A visible focus ring on every keyboard-focused control (AX-01). Applied once
+ * here rather than per component so nothing can be shipped without one.
+ */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/*
+ * AN-37: the result prints to a clean, single-column page. P1 acts on the trade
+ * list away from the browser and P3 attaches it to a report, so the chrome that
+ * is useless on paper — navigation, the intake form, the run controls — is
+ * dropped and the two-column grid is collapsed.
+ *
+ * `print-disclosure` carries the CN-01 text, which must appear on any printed
+ * result; it is hidden on screen because the page already states it.
+ */
+@media print {
+  [data-print="hide"] {
+    display: none !important;
+  }
+
+  [data-print="disclosure"] {
+    display: block !important;
+  }
+
+  /* Collapse every grid to a single column and drop the fixed header offset. */
+  main {
+    padding-top: 0 !important;
+  }
+
+  .grid {
+    display: block !important;
+  }
+
+  details {
+    /* The audit trail belongs on the printed page even when collapsed on screen. */
+    display: block !important;
+  }
+
+  details > div {
+    display: block !important;
+  }
+
+  * {
+    background: #fff !important;
+    color: #000 !important;
+    box-shadow: none !important;
+    border-color: #999 !important;
+  }
+}
+
+/* DS-10: all motion is opt-out, including busy spinners. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

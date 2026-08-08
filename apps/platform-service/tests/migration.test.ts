@@ -59,6 +59,24 @@ async function readMigration(tag: string): Promise<string[]> {
     .filter(Boolean);
 }
 
+/**
+ * Rebinds a migration statement to the throwaway schema.
+ *
+ * Drizzle emits `CREATE TABLE` unqualified but writes foreign-key targets as
+ * `"public"."users"` — see 0000's closing ALTER TABLE. Under the `search_path`
+ * isolation this test relies on, the tables land in `TEST_SCHEMA` while the
+ * reference still points at `public`, so the constraint fails with
+ * `relation "public.users" does not exist` on any database that has no public
+ * schema of its own. That is every fresh CI Postgres.
+ *
+ * Rewriting the qualifier here keeps the migration files untouched — they are
+ * applied history and must not be edited — while letting the sandbox be a
+ * faithful, self-contained copy of the real schema.
+ */
+function intoTestSchema(statement: string): string {
+  return statement.replaceAll('"public".', `"${TEST_SCHEMA}".`);
+}
+
 async function connect(): Promise<PgClient | null> {
   if (!CONNECTION_STRING) return null;
   const client = new pg.Client({ connectionString: CONNECTION_STRING, connectionTimeoutMillis: 3000 });
@@ -106,7 +124,7 @@ test("migrating a populated pre-n_samples database preserves data and applies de
 
     // ── Old world: schema 0000 only ──────────────────────────────────────────
     for (const statement of await readMigration("0000_smiling_firebird")) {
-      await client.query(statement);
+      await client.query(intoTestSchema(statement));
     }
 
     const beforeColumns = await columnsOf(client, "usermodelhistory");
@@ -126,10 +144,25 @@ test("migrating a populated pre-n_samples database preserves data and applies de
       [JSON.stringify([[0.4, 0.5]]), JSON.stringify([0.6])],
     );
 
+    // The seed rows above set `serialno` explicitly, which does not advance the
+    // `serial` sequence — so the first insert that lets the sequence assign an
+    // id would collide on the primary key. Restoring the sequences is what a
+    // real restore-then-migrate does, and it is what makes the current-contract
+    // insert at the end of this test a meaningful check rather than a crash.
+    for (const table of ["users", "usermodelhistory", "globalmodelhistory"]) {
+      const column = table === "users" ? "userid" : "serialno";
+      await client.query(
+        `SELECT setval(
+           pg_get_serial_sequence('${TEST_SCHEMA}.${table}', '${column}'),
+           (SELECT COALESCE(MAX(${column}), 1) FROM ${table})
+         )`,
+      );
+    }
+
     // ── Apply the remaining migrations in journal order ──────────────────────
     for (const tag of (await readJournalTags()).slice(1)) {
       for (const statement of await readMigration(tag)) {
-        await client.query(statement);
+        await client.query(intoTestSchema(statement));
       }
     }
 

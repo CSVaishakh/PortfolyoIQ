@@ -94,6 +94,8 @@ function buildHarness(
     getLatestGlobalModel: async () => (globalSnapshots.at(-1) ?? null) as never,
     getGlobalModelBySerial: async (serialno: number) =>
       (globalSnapshots.find((s) => s["serialno"] === serialno) ?? null) as never,
+    getGlobalModelHistory: async (limit: number, offset: number) =>
+      [...globalSnapshots].reverse().slice(offset, offset + limit) as never,
     saveGlobalWeights: async (coeff, intercept, participants, nSamplesTotal, fv, sv, mv) => {
       const row = {
         serialno: globalSnapshots.length + 1,
@@ -391,4 +393,97 @@ test("rollback of an unknown snapshot is a 404, not a silent no-op", async () =>
 test("rollback rejects a non-numeric serial number", async () => {
   const res = await post("/model/rollback/abc", {}, { "x-admin-secret": ADMIN_SECRET });
   assert.equal(res.status, 400);
+});
+
+// ── Operator read-only routes ─────────────────────────────────────────────────
+// GET /model/status and GET /model/history back the admin console. Both are
+// read-only: AD-01 requires that verifying an operator key never changes state,
+// which the previous UI violated by POSTing to /model/train to test the secret.
+//
+// These seed their own snapshots rather than relying on what earlier tests left
+// in `globalSnapshots`, so they assert the routes' behaviour and not the order
+// the suite happens to run in.
+
+function seedSnapshots(count: number): void {
+  globalSnapshots.length = 0;
+  for (let i = 1; i <= count; i++) {
+    globalSnapshots.push({
+      serialno: i,
+      coeff: validCoeff(),
+      intercept: [0.1],
+      participants: 100 + i,
+      n_samples_total: 1000 * i,
+      timestamp: new Date(i * 86_400_000),
+      ...MODEL_CONTRACT_ROW(),
+    });
+  }
+}
+
+test("model status requires the admin secret", async () => {
+  assert.equal((await get("/model/status")).status, 403);
+  assert.equal((await get("/model/status", { "x-admin-secret": "wrong" })).status, 403);
+});
+
+test("model history requires the admin secret", async () => {
+  assert.equal((await get("/model/history")).status, 403);
+  assert.equal((await get("/model/history", { "x-admin-secret": "wrong" })).status, 403);
+});
+
+test("model status reports no active model before one is activated", async () => {
+  globalSnapshots.length = 0;
+  const res = await get("/model/status", { "x-admin-secret": ADMIN_SECRET });
+  assert.equal(res.status, 200);
+  assert.equal(res.body["activeModel"], null);
+});
+
+test("model status reports the active model and the operational flags", async () => {
+  seedSnapshots(3);
+  const res = await get("/model/status", { "x-admin-secret": ADMIN_SECRET });
+  assert.equal(res.status, 200);
+
+  assert.deepEqual(res.body["flags"], {
+    federatedAggregationEnabled: true,
+    demoModelEnabled: true,
+  });
+
+  const active = res.body["activeModel"] as Record<string, unknown>;
+  assert.ok(active, "the newest snapshot is the active model");
+  assert.equal(active["serialno"], 3);
+  assert.equal(active["participants"], 103);
+  for (const key of ["timestamp", "n_samples_total", "feature_version"]) {
+    assert.ok(key in active, `activeModel should carry ${key}`);
+  }
+  // Weights are not part of the operator view.
+  assert.equal("coeff" in active, false);
+});
+
+test("verifying the admin secret activates nothing", async () => {
+  seedSnapshots(2);
+  await get("/model/status", { "x-admin-secret": ADMIN_SECRET });
+  await get("/model/history", { "x-admin-secret": ADMIN_SECRET });
+  assert.equal(globalSnapshots.length, 2, "a read must not create a snapshot");
+});
+
+test("model history returns snapshots newest first and honours pagination", async () => {
+  seedSnapshots(4);
+
+  const all = await get("/model/history", { "x-admin-secret": ADMIN_SECRET });
+  assert.equal(all.status, 200);
+  const serials = (all.body["results"] as Array<Record<string, unknown>>).map(
+    (r) => r["serialno"] as number,
+  );
+  assert.deepEqual(serials, [4, 3, 2, 1], "newest first");
+
+  const page2 = await get("/model/history?page=2&limit=2", { "x-admin-secret": ADMIN_SECRET });
+  const pageSerials = (page2.body["results"] as Array<Record<string, unknown>>).map(
+    (r) => r["serialno"] as number,
+  );
+  assert.deepEqual(pageSerials, [2, 1], "the second page continues the same ordering");
+});
+
+test("model history clamps an oversized limit rather than dumping the table", async () => {
+  seedSnapshots(2);
+  const res = await get("/model/history?limit=9999", { "x-admin-secret": ADMIN_SECRET });
+  assert.equal(res.status, 200);
+  assert.equal(res.body["limit"], 50);
 });
