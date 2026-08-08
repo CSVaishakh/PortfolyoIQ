@@ -112,7 +112,7 @@ EOF
 
 log "packing $OUT_TARBALL"
 tar -C "$WORK_DIR" -czf "$OUT_TARBALL" "$RELEASE_ID"
-sha256sum "$OUT_TARBALL" > "${OUT_TARBALL}.sha256"
+(cd "$(dirname "$OUT_TARBALL")" && sha256sum "$(basename "$OUT_TARBALL")") > "${OUT_TARBALL}.sha256"
 rm -rf "$WORK_DIR"
 
 log "done: $OUT_TARBALL"
