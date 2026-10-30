@@ -1,0 +1,38 @@
+% T12 --- statistical validation, merged with threshold sensitivity
+\begin{table}[t]
+\caption{Statistical validation and operating-point sensitivity}
+\label{tab:t12}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}llr@{}}
+\toprule
+Procedure & Quantity & Value \\
+\midrule
+5-fold cross-validation & ROC-AUC mean $\pm$ s.d.\ (5 folds) & $0.6519 \pm 0.0094$ \\
+5-fold cross-validation & PR-AUC mean $\pm$ s.d. & $0.6452 \pm 0.0065$ \\
+\multirow{2}{*}{Bootstrap, 1{,}000 resamples}
+  & test AUC 95\% CI & $[0.6342,\ 0.6622]$ \\
+  & test accuracy 95\% CI & $[0.5892,\ 0.6140]$ \\
+\multirow{2}{*}{Calibration}
+  & expected calibration error & 0.0214 \\
+  & Brier score (baseline 0.25) & 0.2336 \\
+\multirow{2}{*}{Reference levels}
+  & majority-class accuracy & 0.5027 \\
+  & precision--recall baseline & 0.5027 \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Threshold sensitivity (acc.\ / prec.\ / rec.\ / F1)}} \\
+$t=0.3$ & \multicolumn{2}{r@{}}{$0.5152$ / $0.5091$ / $0.9907$ / $0.6726$} \\
+$t=0.5$ (deployed) & \multicolumn{2}{r@{}}{$\mathbf{0.6022}$ / $\mathbf{0.6250}$ / $\mathbf{0.5212}$ / $\mathbf{0.5684}$} \\
+$t=0.7$ & \multicolumn{2}{r@{}}{$0.5380$ / $0.7675$ / $0.1160$ / $0.2016$} \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5mm}
+\raggedright\footnotesize
+Bootstrap resamples the 6{,}000 test rows with replacement; fold-level ROC-AUC
+values are $0.6663$, $0.6387$, $0.6479$, $0.6578$, $0.6488$. Paired McNemar tests
+are reported in Table~\ref{tab:t7}. The deployed threshold $0.5$ is
+accuracy-optimal; lower thresholds trade precision for recall (0.99 recall at
+$t{=}0.3$), higher thresholds the reverse (0.77 precision at $t{=}0.7$).
+\end{table}

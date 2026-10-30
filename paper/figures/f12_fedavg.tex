@@ -1,0 +1,49 @@
+% F12 --- federated aggregation round (single column)
+\begin{figure}[tb]
+\centering
+\begin{tikzpicture}[
+  font=\scriptsize,
+  cl/.style={draw, rounded corners=1.5pt, minimum width=1.35cm,
+             minimum height=0.46cm, fill=black!2, align=center},
+  st/.style={draw, rounded corners=1.5pt, minimum width=5.6cm,
+             minimum height=0.5cm, align=center, fill=white},
+  gate/.style={draw, rounded corners=1.5pt, minimum width=5.6cm,
+               minimum height=0.5cm, align=center, fill=black!6},
+  flow/.style={-{Latex[length=1.5mm]}, thick}
+]
+
+\node[cl] (c1) at (-1.9,0) {client 1};
+\node[cl] (c2) at (-0.35,0) {client 2};
+\node[font=\scriptsize] at (1.0,0) {$\cdots$};
+\node[cl] (ck) at (2.3,0) {client $K$};
+
+\node[st] (val) at (0.2,-0.95)
+  {validate: contract version, $n_k\le 10^4$, 1\,h throttle};
+\node[st] (clip) at (0.2,-1.72)
+  {clip $\tilde{\mathbf{W}}_k$ so $\lVert\Delta_k\rVert_2\le L=5$};
+\node[gate] (gate) at (0.2,-2.49)
+  {gate: $\lvert\{\text{valid}\}\rvert\ge 2$ and versions current};
+\node[st] (agg) at (0.2,-3.26)
+  {aggregate $\bar{\mathbf{W}}=\sum_k (n_k/\!\sum_j n_j)\,\tilde{\mathbf{W}}_k$};
+\node[gate] (conf) at (0.2,-4.03)
+  {model service confirms (parity $10^{-12}$)};
+\node[st] (pub) at (0.2,-4.80)
+  {atomic persist, then publish new version};
+
+\foreach \c in {c1,c2,ck} {\draw[flow] (\c.south) -- (val.north);}
+\draw[flow] (val) -- (clip);
+\draw[flow] (clip) -- (gate);
+\draw[flow] (gate) -- (agg);
+\draw[flow] (agg) -- (conf);
+\draw[flow] (conf) -- (pub);
+
+\draw[flow, dashed] (pub.east) -- ++(0.55,0) |- (ck.east);
+\node[font=\tiny, anchor=west] at (3.15,-2.4) {\rotatebox{90}{next round}};
+
+\end{tikzpicture}
+\caption{A federated aggregation round, cf.~\eqref{eq:e28}--\eqref{eq:e30}. Updates
+are accepted only on the current contract version, $L_2$-clipped, and persisted
+only after the model service confirms the aggregate. Implemented and unit-tested;
+disabled by default and not evaluated here.}
+\label{fig:f12}
+\end{figure}

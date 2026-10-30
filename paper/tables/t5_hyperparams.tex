@@ -1,0 +1,34 @@
+% T5 --- model hyperparameters
+\begin{table}[t]
+\caption{Model and runtime configuration}
+\label{tab:t5}
+\centering
+\footnotesize
+\begin{tabular}{@{}lll@{}}
+\toprule
+Component & Setting & Value \\
+\midrule
+\multirow{4}{*}{scikit-learn (server)}
+  & estimator & logistic regression \\
+  & solver & lbfgs \\
+  & inverse penalty $C$ & 1.0 \\
+  & \texttt{max\_iter} & 1000 \\
+\midrule
+\multirow{4}{*}{TensorFlow.js (browser)}
+  & architecture & one dense sigmoid unit \\
+  & regularizer & $L_2$ with $1/C$ \\
+  & optimizer & Adam, learning rate 0.05 \\
+  & batch size & 32 \\
+\midrule
+\multirow{3}{*}{Evaluation}
+  & decision threshold & 0.5 \\
+  & split & row-order 60/20/20 \\
+  & cross-validation & 5-fold \\
+\midrule
+\multirow{3}{*}{Environment}
+  & scikit-learn & 1.7.2 \\
+  & numpy & 2.2.6 \\
+  & pandas & 2.3.3 \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,29 @@
+% T4 --- generator parameters
+\begin{table}[t]
+\caption{Generator constants}
+\label{tab:t4}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}llr@{}}
+\toprule
+Constant & Role & Value \\
+\midrule
+\texttt{TOTAL\_SAMPLES} & rows generated & 30{,}000 \\
+\texttt{SEED} & both pseudo-random streams & 20260804 \\
+\texttt{FORWARD\_TRADING\_DAYS} & label horizon & 21 \\
+\texttt{MARKET\_WARMUP\_DAYS} & history for market features & 90 \\
+elapsed range & trading days since $t_0$ & 5--170 \\
+trading/calendar ratio & day-count conversion & 5/7 \\
+$\beta$ range & persistent per-symbol beta & 0.55--1.55 \\
+\texttt{REVERSION\_SENSITIVITY} & reversion gain in \eqref{eq:e20} & 0.07 \\
+reversion clamp & bounds on $\kappa$ & $[-0.0945, 0.21]$ \\
+volatility pivot / scale & stress normalization & 0.009 / 0.005 \\
+drawdown pivot / scale & stress normalization & $-0.05$ / 0.08 \\
+\texttt{SECTOR\_SHOCK\_SCALE} & sector shock, $\times\sigma$ & 0.6 \\
+\texttt{IDIOSYNCRATIC\_SCALE} & idiosyncratic shock, $\times\sigma$ & 1.1 \\
+\texttt{RISK\_AVERSION} $A$ & risk term in \eqref{eq:e23} & 45.0 \\
+\texttt{TURNOVER\_COST\_RATE} $c$ & round-trip cost & 0.0035 \\
+\bottomrule
+\end{tabular}
+\end{table}

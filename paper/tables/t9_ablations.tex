@@ -1,0 +1,30 @@
+% T9 --- ablations
+\begin{table}[t]
+\caption{Ablations, reported as test AUC against the full twelve-feature model}
+\label{tab:t9}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}llrr@{}}
+\toprule
+& Configuration & Test AUC & $\Delta$ \\
+\midrule
+& full model (12 features) & 0.6489 & --- \\
+A1 & without \texttt{days\_since\_last\_rebalance} & 0.6483 & $-0.0006$ \\
+A2 & without the market block & 0.6280 & $-0.0209$ \\
+A3 & without the portfolio block & 0.6045 & $-0.0444$ \\
+& market features only & 0.6043 & $-0.0446$ \\
+& portfolio features only & 0.6193 & $-0.0296$ \\
+A4 & scaler refitted on the training split & 0.6490 & $+0.0001$ \\
+A5 & rows shuffled before splitting & 0.6477 & $-0.0012$ \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5mm}
+\raggedright\footnotesize
+A1 and A4 carry the argument. Removing elapsed time costs $0.0006$ AUC, confirming
+that the label of \eqref{eq:e23} leaves almost no direct time signal, in contrast
+to the correlation of $0.4192$ observed under heuristic labels. Refitting the
+scaler on the training split changes AUC by $+0.0001$, which bounds the cost of the
+disclosed scaler-provenance defect.
+\end{table}

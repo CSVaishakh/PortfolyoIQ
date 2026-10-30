@@ -1,0 +1,49 @@
+% F3 --- label mechanism, the Delta-CE inequality (single column)
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\scriptsize,
+  term/.style={draw, rounded corners=2pt, minimum height=1.15cm,
+               text width=2.15cm, align=center, fill=black!2},
+  dec/.style={draw, rounded corners=2pt, thick, minimum height=0.62cm,
+              text width=3.1cm, align=center, fill=white},
+  flow/.style={-{Latex[length=1.5mm]}, thick}
+]
+
+\node[term] (ret) at (0,0)
+  {\textbf{return gain}\\[1mm]$(\mathbf{t}-\mathbf{w})^{\!\top}\mathbf{f}$\\[0.5mm]
+   \tiny reversion-aware};
+\node[term] (risk) at (2.75,0)
+  {\textbf{risk gain}\\[1mm]$A\,[\mathrm{Var}(\mathbf{w})-\mathrm{Var}(\mathbf{t})]$\\[0.5mm]
+   \tiny $A=45$};
+\node[term] (cost) at (5.5,0)
+  {\textbf{cost}\\[1mm]$-\,c\,\lVert\mathbf{t}-\mathbf{w}\rVert_1$\\[0.5mm]
+   \tiny $c=0.0035$};
+
+\node[font=\large] at (1.38,0) {$+$};
+\node[font=\large] at (4.13,0) {$-$};
+
+\node[dec] (sum) at (2.75,-1.5) {$\Delta\mathrm{CE}(\mathbf{w},\mathbf{t},\mathbf{f})$};
+
+\draw[flow] (ret.south) -- ([xshift=-9mm]sum.north);
+\draw[flow] (risk.south) -- (sum.north);
+\draw[flow] (cost.south) -- ([xshift=9mm]sum.north);
+
+\node[dec, fill=black!6] (yes) at (0.85,-2.85) {$y=1$ rebalance};
+\node[dec] (no) at (4.65,-2.85) {$y=0$ hold};
+
+\draw[flow] (sum.south) -- ++(0,-0.35) -| (yes.north)
+  node[pos=0.75, above, font=\tiny] {$>0$};
+\draw[flow] (sum.south) -- ++(0,-0.35) -| (no.north)
+  node[pos=0.75, above, font=\tiny] {$\le 0$};
+
+\node[font=\scriptsize\itshape, align=center] at (2.75,-3.72)
+  {$\tau$ (days since rebalance) does not appear};
+
+\end{tikzpicture}
+\caption{Backtest label construction, cf.~\eqref{eq:e23}. Rebalancing is required
+iff the return gain plus the risk-aversion-weighted variance reduction exceeds
+the turnover cost. Elapsed time enters no term directly; it reaches the label
+only through the drift it causes.}
+\label{fig:f3}
+\end{figure}

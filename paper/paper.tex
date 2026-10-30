@@ -1,0 +1,157 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%  PortfolioIQ --- IEEE conference paper
+%
+%  Build:  latexmk -pdf paper.tex
+%  Layout: IEEEtran [conference], double column, 10pt
+%
+%  Structure follows the department template:
+%    Abstract / I Introduction / II Literature Survey / III Methodology /
+%    IV Implementation and Result / V Conclusion
+%
+%  Every numeric claim is reproduced by scripts/reproduce.py under the pinned
+%  environment (scikit-learn 1.7.2, numpy 2.2.6, pandas 2.3.3).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+
+\usepackage[hyphens]{url}
+\Urlmuskip=0mu plus 1mu\relax
+\sloppy
+
+% Compact spacing to fit the 6-page limit; no content is affected.
+\setlength{\textfloatsep}{5pt plus 2pt minus 2pt}
+\setlength{\floatsep}{3pt plus 1pt minus 1pt}
+\setlength{\intextsep}{5pt plus 2pt minus 2pt}
+\setlength{\abovecaptionskip}{3pt}
+\setlength{\belowcaptionskip}{2pt}
+
+\graphicspath{{figures/}}
+
+\begin{document}
+
+\title{Federated Learning-Based Portfolio Rebalancing\\
+Necessity Detection}
+
+\author{
+    \centering
+    \IEEEauthorblockN{
+        \footnotesize\begin{tabular}{cc}
+            C S Vaishakh & Lakshmy Rajeev \\
+            \textit{Department of Artificial Intelligence and Data Science} &
+            \textit{Department of Artificial Intelligence and Data Science} \\
+            \textit{St. Joseph's College of Engineering \& Technology, Palai} &
+            \textit{St. Joseph's College of Engineering \& Technology, Palai} \\
+            Choondacherry P.O., Kottayam District, Kerala State -- 686579 &
+            Choondacherry P.O., Kottayam District, Kerala State -- 686579 \\
+            csvaishakh2027@ai.sjcetpalai.ac.in & lakshmy0004@gmail.com
+        \end{tabular}
+    }
+
+    \vspace{0.4cm}
+
+    \IEEEauthorblockN{
+        \footnotesize\begin{tabular}{cc}
+            Rahul Sarang & Sooraj P S \\
+            \textit{Department of Artificial Intelligence and Data Science} &
+            \textit{Department of Artificial Intelligence and Data Science} \\
+            \textit{St. Joseph's College of Engineering \& Technology, Palai} &
+            \textit{St. Joseph's College of Engineering \& Technology, Palai} \\
+            Choondacherry P.O., Kottayam District, Kerala State -- 686579 &
+            Choondacherry P.O., Kottayam District, Kerala State -- 686579 \\
+            ars.rahul.san@gmail.com & pssooraj88@gmail.com
+        \end{tabular}
+    }
+
+    \vspace{0.4cm}
+
+    \IEEEauthorblockN{
+        \footnotesize\begin{tabular}{c}
+            Saritha M S \\
+            \textit{Department of Artificial Intelligence and Data Science} \\
+            \textit{St. Joseph's College of Engineering \& Technology, Palai} \\
+            Choondacherry P.O., Kottayam District, Kerala State -- 686579 \\
+            sarithams123@gmail.com
+        \end{tabular}
+    }
+}
+
+\maketitle
+
+\begin{abstract}
+Portfolio rebalancing is usually governed by fixed calendar or drift-band rules
+that ignore the market state in which the decision is taken, and the machine
+learning systems proposed to replace those rules are commonly trained on labels
+emitted by the very heuristics they are meant to supersede. Because such a label
+is a deterministic function of the input features, the resulting classifier
+recovers the rule rather than the decision, an effect this paper names rule-oracle
+degeneracy and measures directly. We present a federated learning-based system
+that treats rebalancing as binary necessity detection over a versioned twelve
+feature portfolio and market contract, labelled by the sign of a 21-trading-day,
+net-of-cost certainty-equivalent gain evaluated over 3{,}706 NIFTY~50 sessions
+spanning 2011 to 2026. Detection and federation are developed as equal parts of
+one design: a logistic detector whose parameters are a twelve-element weight
+vector, and a sample-weighted federated averaging protocol with $L_2$-clipped
+updates, contract gating and atomic activation, in which model updates rather
+than holdings leave the client. The detector attains a test ROC-AUC of 0.6489
+(five-fold cross-validation $0.6519 \pm 0.0094$) with an expected calibration
+error of 0.0214. Relabelling the identical 30{,}000 states with the project's own
+heuristic, changing nothing but the label function, raises test ROC-AUC to 0.9890,
+a gap of 0.3401 attributable to the label and not to the learner, across which the
+correlation between elapsed time and the label rises from 0.0256 to 0.6074. That
+heuristic predicts realised net-of-cost benefit at 0.5278, and calendar and band
+rules at 0.5167 and 0.5146, all close to chance. The aggregation path is
+implemented and unit-tested but disabled by default and not experimentally
+evaluated here, and no privacy guarantee is claimed.
+\end{abstract}
+
+\begin{IEEEkeywords}
+portfolio rebalancing, necessity detection, federated learning, federated
+averaging, logistic regression, model calibration, NIFTY 50
+\end{IEEEkeywords}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%  Compressed toward the 6-page conference limit (builds at 7 pages): 3
+%  figures, 4 tables, 7 core equations. Tables t1_dataset, t3_profiles,
+%  t4_generator, t5_hyperparams, t9_ablations, t10_fedavg, t12_statistical,
+%  t13_threshold and figures f2_generation, f3_label, f4_label_balance,
+%  f5_feature_corr, f6_roc, f7_pr, f8_calibration, f9_corr_heatmap,
+%  f10_coefficients, f13_aggregation, f14_cv_folds remain in the repository as
+%  supplementary detail; their content is merged into the surviving floats or
+%  condensed to prose. See compression_plan.md.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\input{sections/01_introduction}
+\input{figures/f1_architecture}
+
+\input{sections/02_literature_survey}
+\input{tables/t14_literature}
+
+\input{sections/03_methodology}
+\input{tables/t2_features}
+\input{figures/f12_fedavg}
+
+\input{sections/04_implementation_results}
+\input{tables/t6_models}
+\input{figures/f11_negative_control}
+\input{tables/t7_baselines}
+
+\input{sections/05_conclusion}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+{\scriptsize
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+}
+
+\end{document}

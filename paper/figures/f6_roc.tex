@@ -1,0 +1,17 @@
+% F6 --- ROC and PR curves merged into one double-column panel (was F6+F7)
+\begin{figure*}[t]
+\centering
+\begin{minipage}[t]{0.485\textwidth}
+\centering
+\includegraphics[width=\linewidth]{f6_roc.pdf}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.485\textwidth}
+\centering
+\includegraphics[width=\linewidth]{f7_pr.pdf}
+\end{minipage}
+\caption{Left: ROC curves on the 6{,}000-row test split; all four learners lie well
+above chance and far below the 0.9890 the same pipeline reaches under heuristic
+labels. Right: precision--recall trade-off for the logistic detector against the
+no-skill baseline (test positive rate 0.5027).}
+\label{fig:f6}
+\end{figure*}

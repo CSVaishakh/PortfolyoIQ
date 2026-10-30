@@ -1,0 +1,71 @@
+\section{Introduction}
+\label{sec:introduction}
+
+A portfolio left untouched does not stay where it was put: differential asset
+returns drift realised weights away from the risk--return position that was
+chosen~\cite{markowitz1952,sharpe1966}. Rebalancing restores that position, but
+every restoration pays spread, brokerage and impact costs and liquidates
+positions whose recent strength may persist~\cite{jegadeesh1993}, so the
+decision is a cost--benefit test on the current drift, market state and
+transaction cost jointly. Incumbent practice answers with rules that use almost
+none of this information: calendar rebalancing acts on a fixed interval and
+drift-band rebalancing on a fixed threshold, both blind to the volatility,
+drawdown and trend that determine whether a round trip is worth its price. The
+applied literature argues this conceptually rather than measuring
+it~\cite{adedoyin_ai,kumari2024}; measured against forward, net-of-cost outcomes
+on our data, a 90-day calendar rule and a drift-band rule attain test AUC
+$0.5167$ and $0.5146$, both close to chance. Fig.~\ref{fig:f1} shows the
+system in which we replace such a rule with a learned detector.
+
+The data this decision needs cannot reasonably be centralised: holdings
+disclose wealth, leverage and trading history and remain identifying long
+after any label is stripped, while a single participant produces too few
+rebalancing states to learn a market-wide regularity alone. Federated
+averaging resolves this cleanly for a linear detector, since its
+parameters --- a twelve-element weight vector and intercept --- are exactly
+the object federated averaging is defined over~\cite{mcmahan2017}, needing no
+distillation step. Transmitting updates instead of holdings is data
+minimisation, not a privacy guarantee; no differential privacy or secure
+aggregation is implemented anywhere in this paper.
+
+Supervised rebalancing has no naturally observable label, and the expedient
+response is to label historical states with the output of the very heuristic
+the model should replace. We call the resulting pathology \emph{rule-oracle
+degeneracy}: the label is a deterministic function of the features the rule
+reads, so the classifier decompiles the rule instead of learning an economic
+decision. Section~\ref{sec:implementation} shows this is large enough to be
+mistaken for success: on one fixed corpus, holding everything but the label
+function constant, the same pipeline reaches test AUC $0.9890$ against
+heuristic labels and $0.6489$ against a forward, net-of-cost backtest.
+
+\subsection{Contributions}
+\begin{itemize}
+\item \textbf{C1: Backtest-derived labels for rebalancing-necessity detection.}
+Each label is the sign of a forward 21-trading-day, net-of-cost
+certainty-equivalent gain (Section~\ref{sec:methodology}), evaluated on
+$3{,}706$ NIFTY~50 sessions (2011-08-01--2026-07-31) at $0.35\%$ round-trip
+cost, over $30{,}000$ generated states with structural positive rate $0.5009$.
+\item \textbf{C2: A quantified measurement of rule-oracle degeneracy.} A
+matched control varying only the label function measures a gap of $0.3401$
+test AUC attributable to the label, not the learner (Section~\ref{sec:implementation}).
+\item \textbf{C3: A hardened federated aggregation protocol.} Updates are
+$L_2$-clipped and combined by a sample-weighted mean, gated by a minimum
+participant count, an upload cap and a per-account throttle, with atomic
+activation. It is implemented and unit-tested but disabled by default and not
+experimentally evaluated here.
+\item \textbf{C4: A cross-runtime parity contract} that pins feature order and
+scaler constants by version, so pooling is well defined and mismatched
+contracts are rejected rather than averaged, to $10^{-12}$/$10^{-5}$ agreement.
+\item \textbf{C5: An explicit model-selection trade.} The linear detector
+surrenders $0.0301$ test AUC to a random forest and is chosen anyway because
+its parameters are averageable and its probabilities are calibrated (ECE
+$0.0214$); the deficit is reported, not suppressed.
+\end{itemize}
+
+The evidence is correspondingly narrow: the cross-section is generated rather
+than observed, no path-based backtest or federated experiment was run, and
+none of this constitutes investment advice. Section~\ref{sec:literature}
+surveys the related literature; Section~\ref{sec:methodology} presents
+detection and federation as equally weighted halves of one design;
+Section~\ref{sec:implementation} reports the results; Section~\ref{sec:conclusion}
+concludes.

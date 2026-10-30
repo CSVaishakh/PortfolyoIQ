@@ -1,0 +1,35 @@
+% F13 --- sample-weighted aggregation arithmetic (single column)
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\scriptsize,
+  cl/.style={draw, rounded corners=2pt, minimum width=2.4cm,
+             minimum height=0.95cm, align=center, fill=black!2},
+  res/.style={draw, rounded corners=2pt, thick, minimum width=2.4cm,
+              minimum height=0.62cm, align=center, fill=white},
+  flow/.style={-{Latex[length=1.5mm]}, thick}
+]
+
+\node[cl] (a) at (0,0) {client A\\$n_A=120$,\; $\theta_A=0.4$};
+\node[cl] (b) at (3.5,0) {client B\\$n_B=360$,\; $\theta_B=0.8$};
+
+\node[res, fill=black!8] (w) at (0,-1.75) {sample-weighted\\$\bar\theta=0.7$};
+\node[res] (u) at (3.5,-1.75) {unweighted mean\\$\bar\theta=0.6$};
+
+\draw[flow] (a.south) -- (w.north) node[midway, left, font=\tiny] {$\tfrac{120}{480}$};
+\draw[flow] (b.south) -- (w.north) node[midway, above, font=\tiny, pos=0.35] {$\tfrac{360}{480}$};
+\draw[flow, dashed, gray] (a.south) -- (u.north);
+\draw[flow, dashed, gray] (b.south) -- (u.north);
+
+\node[align=center, font=\scriptsize] at (1.75,-2.85)
+  {$\dfrac{120\cdot 0.4 + 360\cdot 0.8}{480}=0.7$};
+
+\end{tikzpicture}
+\caption{Sample-weighted aggregation, cf.~\eqref{eq:e29}. A client contributing
+360 training samples moves the aggregate three times as far as one contributing
+120, yielding $0.7$ where an unweighted mean would yield $0.6$. Because the
+weighting trusts each client's reported sample count, clipping bounds the
+magnitude of an update but not an inflated count; robustness to count inflation
+is not evaluated here.}
+\label{fig:f13}
+\end{figure}

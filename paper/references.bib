@@ -1,0 +1,182 @@
+% references.bib -- PortfolioIQ IEEE conference paper
+%
+% Assembled from the dossier's literature review
+% (research-report/08_literature_review.md, sections 8.1 and 8.5) and the
+% candidate reference list in research-report/14_ieee_blueprint.md. Citation
+% keys are fixed by paper/FACTS.md section 11.
+%
+% Provenance rules observed while assembling this file:
+%   * No DOI was fabricated. A doi field appears only for the three entries
+%     whose DOI the dossier states explicitly (mashrur2020, javeed2024,
+%     yu2022fedrl). Every other entry omits the field.
+%   * No page range, volume, number, or year was fabricated. Fields absent
+%     from the dossier are omitted rather than guessed. adedoyin_ai therefore
+%     carries no venue, no date, and no pages.
+%   * mashrur2020 uses DOI 10.1109/ACCESS.2020.3036322; the earlier draft's
+%     ...3036314 was a misprint.
+%   * yu2022fedrl is by Yu, Wynter and Lim (Springer, 2022). An earlier draft
+%     wrongly credited this work to Noseda et al. That attribution is wrong
+%     and must not be reintroduced.
+%
+% Style note: title capitalization is brace-protected for proper nouns and
+% acronyms because IEEEtran's bibliography style lowercases titles otherwise.
+
+% ---------------------------------------------------------------------------
+% Classical portfolio theory
+% ---------------------------------------------------------------------------
+
+@article{markowitz1952,
+  author  = {Markowitz, Harry},
+  title   = {Portfolio selection},
+  journal = {The Journal of Finance},
+  volume  = {7},
+  number  = {1},
+  pages   = {77--91},
+  year    = {1952}
+}
+
+@article{sharpe1966,
+  author  = {Sharpe, William F.},
+  title   = {Mutual fund performance},
+  journal = {The Journal of Business},
+  volume  = {39},
+  number  = {1},
+  pages   = {119--138},
+  year    = {1966}
+}
+
+@article{jegadeesh1993,
+  author  = {Jegadeesh, Narasimhan and Titman, Sheridan},
+  title   = {Returns to buying winners and selling losers: Implications for
+             stock market efficiency},
+  journal = {The Journal of Finance},
+  volume  = {48},
+  number  = {1},
+  pages   = {65--91},
+  year    = {1993}
+}
+
+% ---------------------------------------------------------------------------
+% Federated learning foundations
+% ---------------------------------------------------------------------------
+
+@inproceedings{mcmahan2017,
+  author    = {McMahan, H. Brendan and Moore, Eider and Ramage, Daniel and
+               Hampson, Seth and {y Arcas}, Blaise Ag{\"u}era},
+  title     = {Communication-efficient learning of deep networks from
+               decentralized data},
+  booktitle = {Proc. 20th Int. Conf. Artificial Intelligence and Statistics
+               ({AISTATS})},
+  pages     = {1273--1282},
+  year      = {2017}
+}
+
+@article{li2020challenges,
+  author  = {Li, Tian and Sahu, Anit Kumar and Talwalkar, Ameet and
+             Smith, Virginia},
+  title   = {Federated learning: Challenges, methods, and future directions},
+  journal = {{IEEE} Signal Processing Magazine},
+  volume  = {37},
+  number  = {3},
+  pages   = {50--60},
+  year    = {2020}
+}
+
+@inproceedings{li2020noniid,
+  author    = {Li, Xiang and Huang, Kaixuan and Yang, Wenhao and
+               Wang, Shusen and Zhang, Zhihua},
+  title     = {On the convergence of {FedAvg} on non-{IID} data},
+  booktitle = {Int. Conf. Learning Representations ({ICLR})},
+  year      = {2020}
+}
+
+@article{yang2019federated,
+  author  = {Yang, Qiang and Liu, Yang and Chen, Tianjian and Tong, Yongxin},
+  title   = {Federated machine learning: Concept and applications},
+  journal = {{ACM} Transactions on Intelligent Systems and Technology},
+  volume  = {10},
+  number  = {2},
+  pages   = {1--19},
+  year    = {2019}
+}
+
+% ---------------------------------------------------------------------------
+% Federated learning and machine learning in finance
+% ---------------------------------------------------------------------------
+
+@misc{noseda2025,
+  author       = {Noseda, Manuel and De Luca, Alberto and Von Briel, Sebastian
+                  and Lacour, Fran{\c{c}}ois},
+  title        = {Federated learning for financial forecasting},
+  howpublished = {arXiv preprint arXiv:2509.16393},
+  year         = {2025}
+}
+
+@article{mashrur2020,
+  author  = {Mashrur, Akib and Luo, Wei and Zaidi, Nayyar A. and
+             Robles-Kelly, Antonio},
+  title   = {Machine learning for financial risk management: A survey},
+  journal = {{IEEE} Access},
+  volume  = {8},
+  pages   = {203203--203230},
+  year    = {2020},
+  doi     = {10.1109/ACCESS.2020.3036322}
+}
+
+@article{javeed2024,
+  author  = {Javeed, Danish and Saeed, Muhammad Shahid and Kumar, Prabhat and
+             Jolfaei, Alireza and Islam, Shareeful and
+             Islam, A. K. M. Najmul},
+  title   = {Federated learning-based personalized recommendation systems: An
+             overview on security and privacy challenges},
+  journal = {{IEEE} Transactions on Consumer Electronics},
+  volume  = {70},
+  number  = {1},
+  pages   = {2618--2630},
+  year    = {2024},
+  doi     = {10.1109/TCE.2023.3318754}
+}
+
+@incollection{yu2022fedrl,
+  author    = {Yu, Pengqian and Wynter, Laura and Lim, Shiau Hong},
+  title     = {Federated reinforcement learning for portfolio management},
+  booktitle = {{Federated Learning: A Comprehensive Overview of Methods and
+               Applications}},
+  editor    = {Ludwig, Heiko and Baracaldo, Nathalie},
+  chapter   = {21},
+  publisher = {Springer},
+  pages     = {467--482},
+  year      = {2022},
+  doi       = {10.1007/978-3-030-96896-0_21}
+}
+
+@article{heaton2017,
+  author  = {Heaton, J. B. and Polson, N. G. and Witte, J. H.},
+  title   = {Deep learning for finance: Deep portfolios},
+  journal = {Applied Stochastic Models in Business and Industry},
+  volume  = {33},
+  number  = {1},
+  pages   = {3--12},
+  year    = {2017}
+}
+
+% ---------------------------------------------------------------------------
+% Conceptual work on AI-assisted rebalancing (motivation and gap positioning)
+% ---------------------------------------------------------------------------
+
+@article{kumari2024,
+  author  = {Kumari, Sharda},
+  title   = {{AI}-enhanced portfolio management: Leveraging machine learning
+             for optimized investment strategies in 2024},
+  journal = {Journal of Informatics Education and Research},
+  volume  = {4},
+  number  = {3},
+  pages   = {1542--1554},
+  year    = {2024}
+}
+
+@misc{adedoyin_ai,
+  author = {Adedoyin, Akinsuru},
+  title  = {{AI}-enhanced tools for rebalancing investment portfolios},
+  note   = {No publication venue, date, or {DOI} available}
+}

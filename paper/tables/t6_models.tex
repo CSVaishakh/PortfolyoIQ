@@ -1,0 +1,40 @@
+% T6 --- model comparison merged with ablations
+\begin{table}[tb]
+\caption{Model comparison and ablations, on the identical split and feature
+representation}
+\label{tab:t6}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+Model & Val.\ AUC & Test AUC & Test acc. \\
+\midrule
+Logistic regression ($C=1$) & 0.6585 & \textbf{0.6489} & 0.6022 \\
+Random forest (200, depth 8) & 0.6750 & \textbf{0.6790} & 0.6290 \\
+Gradient boosting (200, depth 3) & 0.6729 & 0.6743 & 0.6258 \\
+SVM-RBF ($C=1$, calibrated) & 0.6773 & 0.6702 & 0.6173 \\
+Logistic regression, raw features & 0.6447 & 0.6333 & 0.5942 \\
+Majority-class baseline & --- & 0.5000 & 0.5027 \\
+\bottomrule
+\end{tabular}
+
+\vspace{1mm}
+\begin{tabular}{@{}llrr@{}}
+\toprule
+& Ablation (vs.\ full 12-feature model, AUC 0.6489) & Test AUC & $\Delta$ \\
+\midrule
+A1 & without \texttt{days\_since\_last\_rebalance} & 0.6483 & $-0.0006$ \\
+A4 & scaler refitted on the training split & 0.6490 & $+0.0001$ \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5mm}
+\raggedright\footnotesize
+Regularization strength is inert ($C\in\{0.1,1,10\}$ all give test AUC
+$0.6489$); ensembles use \texttt{random\_state}~$=$~20260804. A1 confirms the
+backtested label leaves almost no direct time signal, against the $0.6074$
+correlation the same feature exhibits under heuristic labels
+(Fig.~\ref{fig:f11}). A4 bounds the disclosed scaler-provenance defect at
+$+0.0001$ AUC.
+\end{table}

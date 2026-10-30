@@ -1,0 +1,99 @@
+\section{Implementation and Result}
+\label{sec:implementation}
+
+\subsection{Implementation}
+
+The detector of Section~\ref{sec:methodology} is deployed as the three-tier
+system of Fig.~\ref{fig:f1}; the evaluation below reproduces the deployed
+model service's protocol exactly, under the pinned environment (scikit-learn
+1.7.2, numpy 2.2.6, pandas 2.3.3, seed $20260804$), and every value here was
+re-executed by a single reproduction script against the committed data. The
+primary corpus is $30{,}000$ generated rows, split $60/20/20$ in source-row
+order (test positive rate $0.5027$); this is not a temporal split, since the
+generator emits no timestamp, and the row-shuffled ablation of
+Table~\ref{tab:t6} establishes only that row order introduces no artifact, a
+weaker property than a genuine temporal holdout. Features use the shipped
+scaler constants, whose legacy provenance defect is disclosed in
+Section~\ref{sec:methodology} and whose cost is quantified below.
+
+\subsection{Performance Evaluation}
+
+The primary detector attains test AUC $0.6489$ (validation $0.6585$, indicating
+no overfitting) against a chance baseline of $0.5000$ and a majority-class
+accuracy of $0.5027$; all other measures (PR-AUC, precision, recall, $F_1$,
+MCC, balanced accuracy) are in Table~\ref{tab:t6} and each exceeds its
+baseline. The probability output is usable as a probability, at Brier score
+$0.2336$ (baseline $0.25$) and expected calibration error $0.0214$ over ten
+bins. Five-fold
+cross-validation gives AUC $0.6519\pm0.0094$ and PR-AUC $0.6452\pm0.0065$, and
+a bootstrap over $1{,}000$ test resamples gives a $95\%$ CI of
+$[0.6342,0.6622]$ for test AUC, excluding both the majority-class rate and the
+random forest's $0.6790$ below, so the margin over chance is not an artifact
+of the test split. At the deployed threshold $0.5$, recall is a conservative
+$0.5212$; sweeping the threshold trades this against precision as expected
+(recall $0.9907$ at $t{=}0.3$, precision $0.7675$ at $t{=}0.7$), so a
+deployment with asymmetric costs should choose its operating point rather than
+inherit $0.5$.
+
+Table~\ref{tab:t6} compares the primary model with alternatives on the
+identical split: regularization strength is inert ($C\in\{0.1,1,10\}$ all give
+test AUC $0.6489$), standardization is not (raw features fall to $0.6333$),
+and the best measured model is a random forest at $0.6790$, followed by
+gradient boosting ($0.6743$) and a calibrated RBF SVM ($0.6702$) --- a
+deficit of $0.0301$ AUC that the logistic detector accepts for the
+aggregability and calibration argued in Section~\ref{sec:methodology}.
+
+\subsection{Findings and Comparison with Existing Approaches}
+
+The central finding is a matched negative control that varies the label
+function and nothing else. The same $30{,}000$ feature rows are relabelled by
+the legacy heuristic scoring rule in place of the backtested
+certainty-equivalent criterion~\eqref{eq:e23}; rows, features, standardization,
+split, model class and evaluation code are identical across both arms.
+Fig.~\ref{fig:f11} shows the result: test AUC $0.9890$ under heuristic labels
+against $0.6489$ under backtested labels, a gap of $0.3401$ attributable to
+the label alone. The mechanism is directly observable: elapsed time correlates
+$0.6074$ with the heuristic label, which reads it as an input, and $0.0256$
+with the backtested label, which contains no elapsed-time term; the two
+labellings agree on only $0.5221$ of rows. The figure $0.9890$ is a degeneracy
+exhibit, not an achievement --- it is the score returned when the oracle
+scored against is the rule the model was given to imitate --- and $0.6489$ is
+the honest difficulty of the task once that oracle is replaced by a forward,
+net-of-cost outcome. A separate $5{,}000$-row corpus labelled by the same
+heuristic reaches test AUC $0.9310$ and is reported only as corroboration,
+since its corpus and class balance differ and the shipped scaler is in-sample
+for it.
+
+Table~\ref{tab:t7} scores the conventional policies against outcome labels on
+the same test rows. The calendar rule attains AUC $0.5167$, the band trigger
+$0.5146$, and --- the argumentative payload --- the legacy heuristic applied
+directly as a decision rule attains only $0.5278$: the rule that a naively
+supervised model reproduces at $0.9890$ predicts actual net-of-cost benefit
+barely above chance, so recovering the rule and deciding well are almost
+unrelated objectives. Paired McNemar tests confirm the ordering in both
+directions (Table~\ref{tab:t7}): the detector significantly beats every
+deterministic rule and the heuristic itself ($p<10^{-16}$ throughout), and is
+itself significantly beaten by both tree ensembles. Against the alternative
+learners the comparison runs the other way and is reported as measured: the
+random forest's $0.0301$ AUC advantage is not within noise, but its
+parameters admit no meaningful coordinate-wise average, whereas the linear
+model's twelve-weight-plus-intercept vector is precisely what federated
+averaging operates on. The trade is worth making only because the federated
+path is pursued; were federation abandoned, a non-federated nonlinear model
+would be the correct choice on this data.
+
+The fitted coefficients (Table~\ref{tab:t2}) are dominated by
+\texttt{market\_volatility\_30d} ($+1.0835$) and \texttt{portfolio\_return}
+($+1.0661$), following directly from the structure of~\eqref{eq:e23}, while
+\texttt{top3\_concentration} carries a negative coefficient despite a positive
+univariate correlation --- the signature of a concentration family correlated
+at $0.91$--$0.92$. No economic reading is claimed for the small coefficients.
+
+One caveat applies throughout: $0.6489$ is the honest difficulty of the task
+under outcome labels, not a ceiling --- no Bayes-rate estimate was computed, and
+Table~\ref{tab:t6} already shows nonlinear learners exceeding it, so the claim
+is task hardness, not optimality. This evaluation reports classification
+metrics only: no path-based backtest was performed, so no Sharpe ratio,
+Sortino ratio, maximum drawdown, turnover or annualised return is reported
+anywhere in this paper, and no federated experiment was run --- both are
+future work.

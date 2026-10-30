@@ -1,0 +1,48 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+This paper treated whether a drifted portfolio should be rebalanced now as a
+detection problem trained on forward, net-of-cost outcome labels rather than
+on the heuristic the detector replaces. The detector was not designed first
+and federated afterwards: because holdings cannot reasonably be centralised
+and no single participant holds enough decision states, the linear detector
+and the aggregation design were developed together with the labelling work.
+
+The central result is a matched-control measurement of rule-oracle
+degeneracy: holding the rows, features, scaler, split, model class and
+evaluation code identical and varying only the label function, the same
+pipeline attains test AUC $0.9890$ under heuristic labels and $0.6489$ under
+backtested labels, a gap of $0.3401$ attributable to the label rather than the
+learner (Section~\ref{sec:implementation}). Against backtested outcomes the
+deterministic policies this work replaces carry little information --- the
+heuristic itself predicts realised benefit at only $0.5278$ --- while the
+detector is calibrated (ECE $0.0214$) and stable under 5-fold cross-validation
+($0.6519\pm0.0094$).
+
+The federated half is a design contribution of equal standing: updates are
+$L_2$-clipped and combined by a sample-weighted mean, gated by a minimum
+participant count, an upload cap and a per-account throttle, with
+contract-version admission and atomic activation, and browser/server
+implementations required to agree to $10^{-12}$. This path is implemented and
+unit-tested, but it is disabled by default and not experimentally evaluated in
+this paper; sharing model updates instead of raw holdings is data
+minimisation, and no privacy guarantee is claimed.
+
+The limits of the evidence are stated plainly: the cross-section is generated
+rather than observed, so no external validity is claimed; costs are a flat
+$35$ basis points with no market impact; the $60/20/20$ split is row order
+with no market-regime holdout; no path-based backtest exists, so no Sharpe,
+Sortino, drawdown or turnover figure is available; no federated experiment
+was run; elapsed time is exact here but would be estimated from transaction
+history for a real user; and the dataset generator resides on an unmerged
+branch that must ship alongside the reproduction script and pinned
+dependencies.
+
+Future work follows directly: outcome-derived labels, a market-regime
+holdout, a multi-factor cross-section and a path-based backtest with turnover
+and impact modelling would together establish whether the structure learned
+here survives outside the generator that produced it, and a federated
+simulation over independent and non-independent partitions, extended to
+poisoning robustness, should precede any evaluation of differential privacy
+or secure aggregation. Nothing in
+this paper constitutes investment advice.

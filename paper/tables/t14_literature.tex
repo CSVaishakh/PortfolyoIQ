@@ -1,0 +1,34 @@
+% T14 --- literature comparison matrix (double column, Literature Survey)
+\begin{table*}[t]
+\caption{Positioning of the present work against the surveyed literature}
+\label{tab:t14}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}llllll@{}}
+\toprule
+Work & Primary focus & Method & Federated & Label source & Numeric results \\
+\midrule
+Adedoyin \cite{adedoyin_ai} & Rebalancing & Conceptual, model-agnostic & No & --- & None reported \\
+Kumari \cite{kumari2024} & Portfolio management & Conceptual review & No & --- & None reported \\
+Mashrur \emph{et al.} \cite{mashrur2020} & Financial risk & Survey (taxonomy) & Named as future work & --- & Survey only \\
+Heaton \emph{et al.} \cite{heaton2017} & Portfolio construction & Deep architectures & No & Market returns & Yes \\
+Noseda \emph{et al.} \cite{noseda2025} & Volatility forecasting & LSTM with FedAvg & Yes, evaluated & Engineered volatility & Yes \\
+Javeed \emph{et al.} \cite{javeed2024} & Recommender privacy & Survey (threat model) & Yes, as subject & --- & Survey only \\
+Yu \emph{et al.} \cite{yu2022fedrl} & Portfolio management & Federated reinforcement learning & Yes, evaluated & Reinforcement reward & Yes \\
+\midrule
+This work & \textbf{Rebalancing necessity} & Logistic detector with FedAvg & Implemented, not evaluated
+  & \textbf{Forward net-of-cost outcome} & Yes \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5mm}
+\raggedright\footnotesize
+The two columns that isolate the gap are the last two. No surveyed work poses
+rebalancing necessity as a supervised binary decision, and none derives its labels
+from a forward, net-of-cost outcome; where labels exist they are engineered
+targets or reinforcement rewards. The federated column is reported honestly: the
+aggregation path of this work is implemented and unit-tested but is not
+experimentally evaluated here, whereas \cite{noseda2025} and \cite{yu2022fedrl}
+report federated experiments.
+\end{table*}

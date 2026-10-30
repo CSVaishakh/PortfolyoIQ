@@ -10,4 +10,16 @@ dist/
 .env.*
 !.env.example
 /docs/stitch_screens
-/paper
+
+# Windows download metadata (WSL)
+*:Zone.Identifier
+
+# LaTeX build artifacts
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz

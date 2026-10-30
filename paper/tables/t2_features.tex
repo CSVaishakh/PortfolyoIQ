@@ -1,0 +1,38 @@
+% T2 --- feature summary with formulas folded in (double column)
+\begin{table*}[t]
+\caption{The twelve-feature contract: definition, distribution over the 30{,}000-row
+dataset, univariate association with the label, and learned coefficient}
+\label{tab:t2}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}cllrrrrr@{}}
+\toprule
+\# & Feature & Formula & Mean & Std & $r$ with $y$ & Solo AUC & Coef. \\
+\midrule
+\multicolumn{8}{@{}l@{}}{\emph{Portfolio block}} \\
+1 & \texttt{num\_stocks} & $N$ & 12.9093 & 10.0162 & $-0.0219$ & 0.5235 & $-0.0352$ \\
+2 & \texttt{max\_stock\_weight} & $w_{\max}=\max_i w_i$ & 0.2705 & 0.2287 & $+0.0291$ & 0.5274 & $+0.0525$ \\
+3 & \texttt{top3\_concentration} & $C_3=\sum_{\mathrm{top3}} w_i$ & 0.5253 & 0.3102 & $+0.0216$ & 0.5273 & $-0.1686$ \\
+4 & \texttt{total\_weight\_drift} & $D_{\mathrm{ew}}=\sum_i|w_i-\tfrac1N|$ & 0.4092 & 0.3433 & $+0.0331$ & 0.5321 & $+0.0411$ \\
+5 & \texttt{portfolio\_return} & $R_p=\sum_i w_iR_i$ & 0.0570 & 0.1099 & $+0.1979$ & 0.6051 & $+1.0661$ \\
+6 & \texttt{portfolio\_volatility} & $V_p=\sum_i w_i(R_i{-}R_p)^2$ & 0.0106 & 0.0209 & $+0.0869$ & 0.5651 & $-0.0213$ \\
+7 & \texttt{sector\_concentration} & $S=\max_s\sum_{i\in s} w_i$ & 0.4386 & 0.2759 & $+0.0239$ & 0.5170 & $+0.0645$ \\
+8 & \texttt{days\_since\_last\_rebalance} & $\tau$ (calendar days) & 122.6721 & 67.2327 & $+0.0256$ & 0.5157 & $-0.0978$ \\
+\midrule
+\multicolumn{8}{@{}l@{}}{\emph{Market block}} \\
+9 & \texttt{market\_return\_30d} & $m_{30}=\mathrm{Cl}_t/\mathrm{Cl}_{t-30}-1$ & 0.0144 & 0.0555 & $+0.0441$ & 0.5417 & $+0.0894$ \\
+10 & \texttt{market\_volatility\_30d} & $\sigma_m=\mathrm{std}_{30}(r)$ & 0.0090 & 0.0047 & $+0.1086$ & 0.5975 & $+1.0835$ \\
+11 & \texttt{market\_drawdown\_90d} & $\delta_{90}=(\mathrm{Cl}_t{-}H_{90})/H_{90}$ & $-0.0411$ & 0.0480 & $-0.0095$ & 0.4972 & $-0.2602$ \\
+12 & \texttt{market\_trend} & $\mathbf{1}\{\mathrm{MA}_{20}{>}\mathrm{MA}_{50}\}$ & 0.6733 & 0.4690 & $+0.0096$ & 0.5090 & $-0.0941$ \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5mm}
+\raggedright\scriptsize
+$w_i=q_iP_i/\sum_j q_jP_j$; $R_i=(P_i-P_i^0)/P_i^0$; $\mathrm{Cl}[\cdot]$ are
+index closes, $r_t=\mathrm{Cl}[t]/\mathrm{Cl}[t-1]-1$, $H_{90}$ the 90-session
+peak. Solo AUC: logistic fit on that feature alone. Coefficients: standardized
+units, intercept $1.6694$; the shipped scaler is fitted on a legacy 5{,}000-row
+set, not this one (Table~\ref{tab:t6}).
+\end{table*}

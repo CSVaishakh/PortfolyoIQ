@@ -1,0 +1,82 @@
+% F1 --- system architecture (double column)
+\begin{figure*}[t]
+\centering
+\resizebox{0.86\linewidth}{!}{%
+\begin{tikzpicture}[
+  font=\footnotesize,
+  tier/.style={draw, rounded corners=2pt, thick, minimum height=2.55cm,
+               minimum width=4.75cm, align=center, fill=black!2},
+  box/.style={draw, rounded corners=1.5pt, minimum width=4.15cm,
+              minimum height=0.44cm, align=center, font=\scriptsize, fill=white},
+  contract/.style={draw, dashed, rounded corners=1.5pt, align=center,
+                   font=\scriptsize, fill=black!4, minimum height=0.72cm},
+  flow/.style={-{Latex[length=1.7mm]}, thick},
+  lbl/.style={font=\scriptsize\itshape, midway, align=center}
+]
+
+% ---- tiers
+\node[tier] (browser) at (0,0) {};
+\node[tier] (platform) at (5.6,0) {};
+\node[tier] (model) at (11.2,0) {};
+
+\node[font=\scriptsize\bfseries, anchor=north] at ([yshift=-1.5mm]browser.north)
+  {Browser (React / TypeScript)};
+\node[font=\scriptsize\bfseries, anchor=north] at ([yshift=-1.5mm]platform.north)
+  {Platform Service (Express 5)};
+\node[font=\scriptsize\bfseries, anchor=north] at ([yshift=-1.5mm]model.north)
+  {Model Service (Python / FastAPI)};
+
+% ---- browser internals
+\node[box] (b1) at (0,0.42) {feature engineering (12-vector)};
+\node[box] (b2) at (0,-0.14) {standardization $z=(x-\mu)/\sigma$};
+\node[box] (b3) at (0,-0.70) {TensorFlow.js inference};
+\node[font=\scriptsize\itshape, anchor=south] at ([yshift=0.5mm]browser.south)
+  {holdings never leave the device};
+
+% ---- platform internals
+\node[box] (p1) at (5.6,0.42) {update validation \& contract gate};
+\node[box] (p2) at (5.6,-0.14) {clip $\lVert\Delta\rVert_2\!\le\!5$, FedAvg};
+\node[box] (p3) at (5.6,-0.70) {versioned model state (Postgres)};
+\node[font=\scriptsize\itshape, anchor=south] at ([yshift=0.5mm]platform.south)
+  {disabled by default};
+
+% ---- model service internals
+\node[box] (m1) at (11.2,0.42) {scikit-learn trainer (authoritative)};
+\node[box] (m2) at (11.2,-0.14) {parity verification $10^{-12}$};
+\node[box] (m3) at (11.2,-0.70) {activation confirmation};
+\node[font=\scriptsize\itshape, anchor=south] at ([yshift=0.5mm]model.south)
+  {30{,}000-row backtested dataset};
+
+% ---- flows
+\draw[flow] ([yshift=3.5mm]browser.east) -- ([yshift=3.5mm]platform.west)
+  node[lbl, above]{weight update\\(JWT)};
+\draw[flow] ([yshift=-3.5mm]platform.west) -- ([yshift=-3.5mm]browser.east)
+  node[lbl, below]{global weights};
+\draw[flow] ([yshift=3.5mm]platform.east) -- ([yshift=3.5mm]model.west)
+  node[lbl, above]{aggregate\\(internal secret)};
+\draw[flow] ([yshift=-3.5mm]model.west) -- ([yshift=-3.5mm]platform.east)
+  node[lbl, below]{confirm\\before persist};
+
+% ---- shared contracts
+\node[contract] (c1) at (2.8,-2.35)
+  {\textbf{feature/scaler contract} \texttt{feature-spec.json}\\
+   feature order $+$ fixed $\mu,\sigma$ (versions 1/1/1)};
+\node[contract] (c2) at (8.4,-2.35)
+  {\textbf{parity fixtures} \texttt{parity-fixtures.json}\\
+   5 reference vectors; $10^{-12}$ Python, $10^{-5}$ TF.js};
+
+\draw[dashed, gray] (browser.south) -- (c1.north west);
+\draw[dashed, gray] (platform.south) -- (c1.north east);
+\draw[dashed, gray] (platform.south) -- (c2.north west);
+\draw[dashed, gray] (model.south) -- (c2.north east);
+
+\end{tikzpicture}%
+}
+\caption{System architecture. Features are computed and standardized in the
+browser; the platform validates and aggregates federated updates; the model
+service is the authoritative trainer that confirms an aggregate before it is
+published. Two versioned contracts keep both runtimes numerically identical. The
+federated path is implemented and unit-tested but disabled by default and not
+evaluated in this paper.}
+\label{fig:f1}
+\end{figure*}

@@ -1,0 +1,37 @@
+% T7 --- deterministic baselines and paired significance tests
+\begin{table}[tb]
+\caption{Deterministic baselines on the same 6{,}000 test rows, and paired
+McNemar tests against the logistic detector}
+\label{tab:t7}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}llrrrrr@{}}
+\toprule
+& Rule & AUC & Acc. & Prec. & Rec. & MCC \\
+\midrule
+B0 & always rebalance & 0.5000 & 0.5027 & --- & --- & 0.0000 \\
+B1 & $\tau \ge 90$ days & 0.5167 & 0.5175 & 0.5157 & 0.6598 & 0.0349 \\
+B2 & band trigger & 0.5146 & 0.5137 & 0.5257 & 0.3319 & 0.0315 \\
+B3 & legacy heuristic & 0.5278 & 0.5287 & 0.5235 & 0.6953 & 0.0590 \\
+B5 & logistic (ours) & \textbf{0.6489} & \textbf{0.6022} & 0.6250 & 0.5212 & 0.2079 \\
+\midrule
+\multicolumn{7}{@{}l@{}}{\emph{McNemar exact test vs.\ tree ensembles (paired hard labels)}} \\
+\multicolumn{2}{@{}l}{Comparison} & $n_{01}$ & $n_{10}$ & \multicolumn{3}{r@{}}{$p$} \\
+\multicolumn{2}{@{}l}{ours vs.\ random forest} & 414 & 575 & \multicolumn{3}{r@{}}{$3.42\times10^{-7}$} \\
+\multicolumn{2}{@{}l}{ours vs.\ gradient boosting} & 438 & 580 & \multicolumn{3}{r@{}}{$9.60\times10^{-6}$} \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5mm}
+\raggedright\footnotesize
+B2 fires when \texttt{total\_weight\_drift}~$>0.20$ and
+\texttt{max\_stock\_weight}~$>0.35$; B3 is the legacy scoring rule of
+Section~\ref{sec:methodology}; B1--B3 emit hard decisions, so their AUC equals
+balanced accuracy. McNemar tests against B0/B1/B2/B3 give
+$p=4.48\times10^{-24}$, $3.43\times10^{-21}$, $2.38\times10^{-25}$,
+$3.24\times10^{-17}$ respectively (detector significantly better in all four;
+full $n_{01}/n_{10}$ in the reproduction script). $n_{01}$ counts rows the
+detector classifies correctly and the comparator does not; $n_{10}$ is the
+converse --- the detector is significantly worse than both tree ensembles.
+\end{table}

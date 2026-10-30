@@ -1,0 +1,53 @@
+% F2 --- dataset construction pipeline (double column)
+\begin{figure*}[t]
+\centering
+\begin{tikzpicture}[
+  font=\scriptsize,
+  gstep/.style={draw, rounded corners=2pt, minimum height=0.95cm,
+               minimum width=2.05cm, align=center, fill=black!2},
+  greal/.style={gstep, fill=black!12, very thick},
+  gout/.style={draw, rounded corners=2pt, minimum height=0.95cm,
+              minimum width=1.75cm, align=center, thick, fill=white},
+  flow/.style={-{Latex[length=1.6mm]}, thick},
+  note/.style={font=\scriptsize\itshape, align=center}
+]
+
+\node[greal] (closes) at (0,0) {NIFTY 50 closes\\3{,}706 sessions\\2011--2026};
+\node[gstep] (day) at (2.45,0) {sample\\decision day $t$\\+ elapsed $\tau$};
+\node[gstep] (basket) at (4.9,0) {basket profile\\+ log-normal\\targets $t_i$};
+\node[gstep] (drift) at (7.35,0) {drift by real\\returns over\\$[t_0,t]$};
+\node[gstep] (feat) at (9.8,0) {12 features\\(portfolio\\$+$ market)};
+\node[greal] (fwd) at (12.25,0) {forward 21\\sessions\\(real index)};
+\node[gout] (label) at (14.5,0) {label\\$y=\mathbf{1}\{\Delta\mathrm{CE}>0\}$};
+
+\foreach \a/\b in {closes/day, day/basket, basket/drift, drift/feat,
+                   feat/fwd, fwd/label}
+  {\draw[flow] (\a) -- (\b);}
+
+% annotations below
+\node[note, below=2.5mm of basket] (n1)
+  {6 profiles, $\rho\in[0.05,1.9]$\\persistent SHA-256 $\beta_i$};
+\node[note, below=2.5mm of drift] (n2)
+  {sector shock $0.6\sigma$\\idiosyncratic $1.1\sigma$};
+\node[note, below=2.5mm of fwd] (n3)
+  {regime-dependent\\mean reversion $\kappa$};
+\node[note, below=2.5mm of label] (n4)
+  {$A=45$, $c=0.0035$};
+
+\draw[gray, dashed] (basket) -- (n1);
+\draw[gray, dashed] (drift) -- (n2);
+\draw[gray, dashed] (fwd) -- (n3);
+\draw[gray, dashed] (label) -- (n4);
+
+\node[note, above=2mm of closes, text width=2.3cm] {\textbf{real market leg}};
+\node[note, above=2mm of fwd, text width=2.3cm] {\textbf{real market leg}};
+
+\end{tikzpicture}
+\caption{Dataset construction. Each of the 30{,}000 rows represents one
+rebalancing decision taken on a real NIFTY~50 trading day: a basket is allocated
+to target weights at $t_0$, drifts to the decision day $t$ through actual index
+returns, and is then evaluated over the following 21 trading sessions. Shaded
+stages use the real index series; the cross-section of individual holdings is
+simulated. Elapsed time influences the label only through the drift it causes.}
+\label{fig:f2}
+\end{figure*}

@@ -1,0 +1,32 @@
+% T1 --- experimental and system configuration (merged datasets + hyperparameters + fedavg constants)
+\begin{table}[t]
+\caption{Experimental and system configuration}
+\label{tab:t1}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\multicolumn{3}{@{}l}{\emph{Datasets}} \\
+\texttt{demo-dataset.csv} & \multicolumn{2}{r@{}}{30{,}000 rows, pos.\ rate 0.5009, 21-day backtest} \\
+\texttt{dataset.csv} (control) & \multicolumn{2}{r@{}}{5{,}000 rows, pos.\ rate 0.5200, heuristic rule} \\
+NIFTY 50 closes & \multicolumn{2}{r@{}}{3{,}706 sessions, 2011-08-01 -- 2026-07-31} \\
+Primary split & \multicolumn{2}{r@{}}{18{,}000 / 6{,}000 / 6{,}000 (row order)} \\
+Generator seed & \multicolumn{2}{r@{}}{20260804} \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Model and runtime}} \\
+scikit-learn (server) & estimator & logistic regression, lbfgs, $C{=}1$, \texttt{max\_iter}{=}1000 \\
+TensorFlow.js (browser) & architecture & 1 dense sigmoid unit, $L_2/C$, Adam lr 0.05, batch 32 \\
+Evaluation & threshold / CV & 0.5 / 5-fold \\
+Environment & versions & scikit-learn 1.7.2, numpy 2.2.6, pandas 2.3.3 \\
+\midrule
+\multicolumn{3}{@{}l}{\emph{Federated aggregation (implemented, unit-tested, disabled by default)}} \\
+\texttt{MIN\_PARTICIPANTS} & \multicolumn{2}{r@{}}{2} \\
+\texttt{MAX\_UPDATE\_L2\_NORM} & \multicolumn{2}{r@{}}{5.0} \\
+\texttt{MAX\_UPLOAD\_SAMPLES} & \multicolumn{2}{r@{}}{10{,}000} \\
+\texttt{MIN\_UPLOAD\_INTERVAL} & \multicolumn{2}{r@{}}{1\,h} \\
+contract versions & \multicolumn{2}{r@{}}{feature/scaler/model 1/1/1} \\
+parity tolerance & \multicolumn{2}{r@{}}{$10^{-12}$ (Python), $10^{-5}$ (TF.js)} \\
+\bottomrule
+\end{tabular}
+\end{table}

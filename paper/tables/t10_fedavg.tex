@@ -1,0 +1,26 @@
+% T10 --- federated constants
+\begin{table}[t]
+\caption{Federated aggregation constants and the objection each addresses}
+\label{tab:t10}
+\centering
+\footnotesize
+\begin{tabular}{@{}llr@{}}
+\toprule
+Constant & Purpose & Value \\
+\midrule
+\texttt{MIN\_PARTICIPANTS} & no single-client rounds & 2 \\
+\texttt{MAX\_UPDATE\_L2\_NORM} & bound one client's influence & 5.0 \\
+\texttt{MAX\_UPLOAD\_SAMPLES} & cap on claimed weight & 10{,}000 \\
+\texttt{MIN\_UPLOAD\_INTERVAL} & per-account throttle & 1\,h \\
+\texttt{PUSH\_ATTEMPTS} & confirmation retries & 3 \\
+contract versions & reject stale feature spaces & 1 / 1 / 1 \\
+parity tolerance (Python) & cross-runtime agreement & $10^{-12}$ \\
+parity tolerance (TF.js) & float32 kernel agreement & $10^{-5}$ \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5mm}
+\raggedright\footnotesize
+These constants are implemented and unit-tested. All three federated feature flags
+default to disabled, and no federated experiment is reported in this paper.
+\end{table}

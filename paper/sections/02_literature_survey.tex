@@ -1,0 +1,55 @@
+\section{Literature Survey}\label{sec:literature}
+
+\textit{Rebalancing policy.} Portfolio construction selects weights that trade
+expected return against variance~\cite{markowitz1952}, and risk-adjusted
+performance measures make the resulting drift consequential~\cite{sharpe1966}.
+Practice answers drift with calendar or threshold rules, neither free of
+opportunity cost since restoring target weights trims positions whose
+intermediate-horizon returns are reported to continue rather than
+revert~\cite{jegadeesh1993}. The applied literature that proposes machine
+learning here argues the point conceptually: Adedoyin catalogues the model
+families that might replace fixed-interval rebalancing and the overfitting
+risk they face~\cite{adedoyin_ai}, and Kumari reaches a similar conclusion for
+threshold policies, naming logistic regression as the appropriate device for a
+binary financial outcome~\cite{kumari2024}. Both are reviews; neither states a
+reproducible method, a labelling procedure or a numeric result, and this work
+uses them only as motivation and as precedent for the model class.
+
+\textit{Financial ML and federated mechanics.} Mashrur \emph{et al.} survey
+machine learning for financial risk management and establish supervised
+classifiers, logistic regression among them, as standard instruments for
+binary financial determinations, while also naming generated data and
+federated learning as directions for settings where confidential or rare-event
+data are unavailable~\cite{mashrur2020}. Deep architectures apply the same
+representation-learning spirit to asset universes~\cite{heaton2017}. Neither
+models the portfolio-level rebalancing action itself. Federated averaging
+trains a shared model by repeatedly averaging local updates instead of
+centralising data~\cite{mcmahan2017}, applicable across the horizontal,
+vertical and transfer settings surveyed by Yang \emph{et al.}~\cite{yang2019federated};
+its dominant obstacle is statistical heterogeneity, which degrades convergence
+under non-independent client data~\cite{li2020challenges,li2020noniid}, and
+surveys of federated recommendation add that retaining data on-device removes
+a class of collection risk while introducing inference and poisoning threats
+of its own~\cite{javeed2024}.
+
+\textit{Financial federated evidence.} Noseda \emph{et al.} train a shared
+volatility classifier and report federated averaging reaching accuracy close
+to centralised training under an IID partition ($0.7162$ vs.\ $0.7295$) and
+exceeding isolated local training under a non-IID partition ($0.7206$ vs.\
+$0.5366$), while strong differential-privacy noise collapses utility below
+every non-private configuration~\cite{noseda2025}. Yu, Wynter and Lim apply
+federated reinforcement learning to portfolio management and find that plain
+aggregation causes training to fail, motivating a personalised, regularised
+server objective~\cite{yu2022fedrl}. The lesson is that collaboration can
+approach centralised quality on heterogeneous financial data, but neither
+privacy mechanisms nor plain averaging are free of cost.
+
+Table~\ref{tab:t14} positions the present work against this survey. No
+identified work treats whether a drifted portfolio requires rebalancing now as
+supervised binary classification trained on forward, net-of-cost outcome
+labels, and none measures the degeneracy that arises when a rebalancing model
+is trained on the labels of the rule it replaces. This paper occupies that
+slot: it formulates rebalancing-necessity detection on backtested outcome
+labels, quantifies the resulting degeneracy against heuristic labels, and
+couples the detector to a federated design exchanging model updates rather
+than portfolio records.

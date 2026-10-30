@@ -1,0 +1,189 @@
+\section{Methodology}\label{sec:methodology}
+
+This section presents the system in two equally weighted halves: detection
+and federation.
+
+\subsection{System and Problem Formulation}
+
+The detector is embedded in the three-tier system of Fig.~\ref{fig:f1}: a
+\emph{browser tier} that builds the feature vector and infers locally, a
+\emph{platform tier} that holds identity and the aggregation core and never
+receives holdings, and a \emph{model tier} that is the single authoritative
+trainer. Two versioned contracts hold the tiers together --- a feature/scaler
+specification and a set of parity fixtures --- detailed in
+Section~\ref{sec:methodology}-E, since they are preconditions for aggregation
+rather than incidental engineering. Only a twelve-element coefficient vector,
+a scalar intercept and a sample count ever cross a tier boundary.
+
+Let $x\in\mathbb{R}^{12}$ describe a portfolio and its market context on a
+decision day. Rebalancing-necessity detection is the binary task
+\begin{equation}\label{eq:e1}
+\hat{y} = g\bigl(f(x;\theta)\bigr),\qquad y\in\{0,1\},
+\end{equation}
+where $y=1$ denotes that rebalancing is warranted. This models the
+\emph{decision}, not the trade schedule implementing it, which is a separate
+deterministic engine outside this scope.
+
+\subsection{Features, Dataset and Labels}
+
+The contract fixes twelve quantities in order: seven portfolio descriptors, one
+elapsed-time descriptor and four market descriptors, defined together with
+their distribution and univariate association with the label in
+Table~\ref{tab:t2}. The vector is assembled in that fixed order and
+standardized by shared constants,
+\begin{equation}\label{eq:e16}
+z_i = (x_i - \mu_i)/\sigma_i \ \ \text{if } \sigma_i \geq 10^{-9}, \ \ \text{else } 0,
+\end{equation}
+part of the versioned contract rather than fitted per run, since federated
+averaging is coherent only when every participant occupies the same input
+space. This carries a disclosed defect: the shipped constants derive from a
+legacy 5{,}000-row dataset rather than the 30{,}000-row training split used
+here (largest discrepancy on \texttt{num\_stocks}, $|\Delta\mu|{=}3.9504$); the
+defect is disclosed rather than repaired, and
+Section~\ref{sec:implementation} quantifies its cost at $+0.0001$ test AUC.
+
+No public dataset pairs portfolio states with realized rebalancing outcomes,
+so the corpus is constructed --- generated data is established practice in
+financial machine learning where labelled outcomes are unobtainable
+\cite{mashrur2020}. The generator emits $30{,}000$ states under seed
+$20260804$; each row is one simulated decision on a real trading day. The
+\emph{market leg is real}: NIFTY~50 daily closes over $3{,}706$ sessions
+(2011-08-01 to 2026-07-31) supply every return and market feature, while only
+the cross-section of holdings is generated from one of six basket profiles
+with log-normal target weights and a persistent per-symbol factor loading
+$\beta_i\in[0.55,1.55]$. The book drifts over $5$--$170$ trading days by a
+real market return plus a systematic, sector and idiosyncratic shock, and
+forward returns combine the real forward index move with a regime-dependent
+reversion term, stronger under volatility/drawdown stress and weaker in calm
+uptrends~\cite{jegadeesh1993}. Persistent loadings keep the market factor from
+averaging out, regime-dependence keeps returns from collapsing into a function
+of weights alone, and drift is \emph{caused} by elapsed time, so elapsed time
+reaches the label only along that causal path; exact constants are in the
+repository alongside the reproduction script.
+
+The label is the outcome of a forward, net-of-cost backtest rather than a
+rule. Let $t$ be target weights, $w$ the drifted current weights and $f$ the
+realized forward returns. The investor compares rebalancing against holding
+under a mean-variance objective with transaction costs
+\cite{markowitz1952,sharpe1966}, and the label is the sign of the resulting net
+certainty-equivalent gain,
+\begin{equation}\label{eq:e23}
+\begin{aligned}
+\Delta\mathrm{CE}(w,t,f) ={}& (t-w)^{\!\top} f
++ A\bigl[\mathrm{Var}(w)-\mathrm{Var}(t)\bigr] \\
+&- c\,\lVert t-w \rVert_1,\qquad
+y = \mathbf{1}\{\Delta\mathrm{CE} > 0\},
+\end{aligned}
+\end{equation}
+with risk aversion $A{=}45.0$ and round-trip cost $c{=}0.0035$ ($35$ basis
+points): a \emph{return gain}, a \emph{risk gain} priced through ex-ante
+variance, and an \emph{implementation cost}. Because cost scales with
+turnover, \eqref{eq:e23} reproduces no-trade-band behaviour without any band
+being coded. Over $30{,}000$ rows it yields a positive rate of $0.5009$
+obtained structurally, without resampling. The elapsed-time feature $\tau$ is
+deliberately absent from \eqref{eq:e23}; it influences the label only through
+the drift it causes, removing the time-collinearity defect of the predecessor
+heuristic, which instead scored a sigmoid combination of a logistic function
+of $\tau$ and a tiered adjustment on drift, concentration, drawdown, trend and
+volatility directly from the feature vector. Because that score is a
+deterministic function of the same features the classifier receives, a model
+trained on its output recovers the rule rather than the decision; it is used
+here solely as a negative control, never as the reported detector's label
+source.
+
+\subsection{Detection Model and Training}
+
+The detector is a binary logistic regression on the standardized vector of
+\eqref{eq:e16},
+\begin{equation}\label{eq:e25}
+P(y=1\mid x) = \sigma\bigl(\langle \mathbf{w}, z \rangle + b\bigr), \quad
+\hat{y} = \mathbf{1}\{P \geq 0.5\},
+\end{equation}
+fitted by $L_2$-regularized maximum likelihood ($C{=}1$, lbfgs,
+\texttt{max\_iter}$=1000$). The $30{,}000$ rows split
+$60/20/20$ by source row order into $18{,}000$/$6{,}000$/$6{,}000$, described as
+row-order rather than temporal since the corpus carries no market-time index.
+
+The linear model is a deployment choice, not an accuracy choice: its
+coefficients are readable log-odds contributions (Table~\ref{tab:t2}) and are
+exactly the object federated averaging operates on --- a weight vector plus
+intercept with no architectural ambiguity, unlike a tree ensemble, which
+admits no meaningful coordinate-wise mean. Identical arithmetic in both
+runtimes is what makes the parity contract testable to $10^{-12}$, and the
+objective yields calibrated probabilities for an interface that presents a
+probability of need rather than a binary instruction. The accuracy price is
+quantified in Section~\ref{sec:implementation}.
+
+\subsection{Federated Protocol and Aggregation}
+
+The parameters of \eqref{eq:e25} are improved across accounts without any
+account disclosing its holdings. Fig.~\ref{fig:f12} shows the round lifecycle:
+a model is seeded from the reference corpus, distributed to authenticated
+clients that refuse a contract mismatch, fitted locally in the browser
+(warm-started from the global parameters under Adam, lr $0.05$, batch $32$,
+so the local optimum is a displacement of the global model), and uploaded ---
+twelve coefficients, an intercept, the sample count $n_k$ and the contract
+versions, nothing else --- validated for shape, finiteness and contract match
+before storage (mismatches rejected as HTTP 409). This scope is stated
+without ambiguity: this path is \textbf{implemented, validated and
+unit-tested, but disabled by default in the shipped product and not
+experimentally evaluated in this paper} --- no federated accuracy, convergence
+or robustness result is claimed, and every number in
+Section~\ref{sec:implementation} comes from centralized training. Transmitting
+updates instead of holdings is data minimisation, not a privacy guarantee;
+neither differential privacy nor secure aggregation is implemented. Both
+statements are repeated once in Section~\ref{sec:conclusion}.
+
+Aggregation operates on displacements. Let $W_{\mathrm{g}}$ be the active
+global model; each admitted update is expressed as a delta and clipped in
+$L_2$ norm,
+\begin{equation}\label{eq:e28}
+\Delta_k = W_k - W_{\mathrm{g}}, \qquad
+\tilde{W}_k = W_{\mathrm{g}} + \Delta_k \min\!\left(1,\ \tfrac{L}{\lVert \Delta_k \rVert_2}\right),
+\end{equation}
+with $L{=}5.0$, then combined by a sample-weighted mean~\cite{mcmahan2017},
+\begin{equation}\label{eq:e29}
+\bar{W} = \sum_k \frac{n_k}{\sum_j n_j}\, \tilde{W}_k .
+\end{equation}
+Weighting is not cosmetic: two participants contributing $0.4$ on $120$
+samples and $0.8$ on $360$ samples aggregate to $(120\cdot0.4+360\cdot0.8)/480=0.7$
+under \eqref{eq:e29}, against $0.6$ unweighted. A round executes only under
+\begin{equation}\label{eq:e30}
+\bigl|\{k : k \text{ valid}\}\bigr| \geq 2 \ \wedge \ \text{contract versions current},
+\end{equation}
+since a single participant would publish its local model as the global one,
+and mixed contracts would average coefficients defined over different feature
+or scaler spaces into a vector that is arithmetically well formed and
+semantically meaningless. Heterogeneous client distributions are a known
+source of degradation for this family of algorithms
+\cite{li2020challenges,li2020noniid}; which regime this system falls into is an
+open question, not a claim made here.
+
+\subsection{Robustness and Parity Contract}
+
+The assumed adversary is a participating account, or colluding accounts,
+attempting to move the global model; the design assumes neither honest
+participants nor cryptographic identity, so it bounds what an identity is
+worth rather than preventing Sybil creation: clipping in~\eqref{eq:e28} bounds
+any single displacement to $L{=}5.0$ regardless of submitted magnitude, a cap
+of $n_k\leq10{,}000$ bounds the weight one identity can claim
+in~\eqref{eq:e29} (since $n_k$ is self-reported and unverifiable without
+seeing data the design is built not to see), and an hourly throttle bounds
+both submission rate and reconnaissance. Aggregation is
+administrator-authenticated and lock-protected, activation is
+push-before-persist and atomic with the ledger, and the append-only ledger
+makes recovery a forward operation; residual weaknesses (a single static
+secret, cleartext transport, non-cryptographic identity) are recorded rather
+than mitigated, and discussed in Section~\ref{sec:conclusion}.
+
+Federated averaging across two runtimes presupposes they compute the same
+function. Two versioned artefacts enforce this: \texttt{feature-spec.json}
+fixes the feature order and constants of~\eqref{eq:e16}; \texttt{parity-fixtures.json}
+pins five reference vectors and their expected standardized forms, logits and
+probabilities, asserted by both test suites at $10^{-12}$ (float64) and
+$10^{-5}$ (browser float32). The platform refuses to store or aggregate any
+row whose contract triple differs from the active one (HTTP 409) rather than
+risk an aggregate silently polluted by incompatible participants --- which is
+also what lets the fixed-constant standardization of~\eqref{eq:e16} stand
+despite its disclosed scaler-provenance defect, since a scaler refitted
+per-client would invalidate~\eqref{eq:e29} outright.
